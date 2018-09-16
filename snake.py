@@ -7,11 +7,12 @@ from sys import exit # To close the window when the game is over
 from os import environ # To center the game window the best possible
 from random import randrange # Random numbers used for the food
 import logging # Logging function for movements and errors
+from itertools import tee # For the color gradient on snake
 import pygame # This is the engine used in the game
 
 __author__ = "Victor Neves"
 __license__ = "MIT"
-__version__ = "0.1"
+__version__ = "0.2"
 __maintainer__ = "Victor Neves"
 __email__ = "victorneves478@gmail.com"
 __status__ = "Production"
@@ -153,6 +154,7 @@ class FoodGenerator():
         """Set flag for existence (or not) of food."""
         self.is_food_on_screen = bool_value
 
+
 class Game():
     """Hold the game window and functions.
 
@@ -179,7 +181,7 @@ class Game():
     def over(self):
         """If collision with wall or body, end the game."""
         pygame.display.set_caption("SNAKE GAME  |  Score: " + str(self.score) +\
-            "  |  GAME OVER. Press any SPACE or ESC to quit ...")
+            "  |  GAME OVER. Press any Q or ESC to quit ...")
         logger.info('EVENT: GAME OVER')
 
         while True:
@@ -211,6 +213,27 @@ class Game():
             logger.info('ACTION: KEY PRESSED: DOWN')
             snake.change_orientation("DOWN")
 
+def poly_gradient(colors, steps, components = 3):
+    def linear_gradient(start, finish, substeps):
+        yield start
+        for i in range(1, substeps):
+            yield tuple([(start[j] + (float(i) / (substeps-1)) * (finish[j]\
+                        - start[j])) for j in range(components)])
+
+    def pairs(seq):
+        a, b = tee(seq)
+        next(b, None)
+        return zip(a, b)
+
+    result = []
+    substeps = int(float(steps) / (len(colors) - 1))
+
+    for a, b in pairs(colors):
+        for c in linear_gradient(a, b, substeps):
+            result.append(c)
+
+    return result
+
 def main():
     """The main function where the game will be executed."""
     # Setup basic configurations for logging in this module
@@ -223,6 +246,9 @@ def main():
     game.start()
 
     # The main loop, it pump key_presses and update the board every tick.
+    previous_size = 3 # Initial size of the snake
+    current_size = 3 # Initial size of the snake
+    color_list = poly_gradient([(0, 0, 0), (152, 152, 152)], current_size)
     while True:
         keys = pygame.key.get_pressed()
         pygame.event.pump()
@@ -236,17 +262,25 @@ def main():
         game.window.fill(pygame.Color(225, 225, 225))
 
         head = 1
-        for pos in snake.return_body():
+        body = snake.return_body()
+        current_size = len(body) # Update the body size
+
+        if current_size != previous_size:
+            color_list = poly_gradient([(0, 0, 0), (152, 152, 152)],\
+                                       current_size)
+
+        for part, color in zip(body, color_list):
             if head == 1:
-                pygame.draw.rect(game.window, var.HEAD_COLOR,\
-                            pygame.Rect(pos[0]*var.BLOCK_SIZE, pos[1] *\
+                pygame.draw.rect(game.window, color,\
+                            pygame.Rect(part[0]*var.BLOCK_SIZE, part[1] *\
                             var.BLOCK_SIZE, var.BLOCK_SIZE, var.BLOCK_SIZE))
                 head = 0
             else:
-                pygame.draw.rect(game.window, var.BODY_COLOR, \
-                            pygame.Rect(pos[0] * var.BLOCK_SIZE, pos[1] *\
+                pygame.draw.rect(game.window, color, \
+                            pygame.Rect(part[0] * var.BLOCK_SIZE, part[1] *\
                             var.BLOCK_SIZE, var.BLOCK_SIZE, var.BLOCK_SIZE))
 
+        previous_size = current_size
         pygame.draw.rect(game.window, var.FOOD_COLOR, pygame.Rect(food_pos[0]\
                          * var.BLOCK_SIZE, food_pos[1] * var.BLOCK_SIZE,\
                          var.BLOCK_SIZE, var.BLOCK_SIZE))
