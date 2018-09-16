@@ -1,11 +1,20 @@
-import pygame # This is the engine used in the game
+#!/usr/bin/env python
+
+"""SnakeGame: A simple and fun exploration, meant to be used by AI algorithms.
+"""
+
 from sys import exit # To close the window when the game is over
 from os import environ # To center the game window the best possible
 from random import randrange # Random numbers used for the food
 import logging # Logging function for movements and errors
-logger = logging.getLogger(__name__) # Setting logger
-environ['SDL_VIDEO_CENTERED'] = '1' # Centering the window
-var = GlobalVariables() # Initializing global variables
+import pygame # This is the engine used in the game
+
+__author__ = "Victor Neves"
+__license__ = "MIT"
+__version__ = "0.1"
+__maintainer__ = "Victor Neves"
+__email__ = "victorneves478@gmail.com"
+__status__ = "Production"
 
 
 class GlobalVariables():
@@ -23,7 +32,7 @@ class GlobalVariables():
         """Initialize all global variables."""
         self.BOARD_SIZE = 30
         self.BLOCK_SIZE = 20
-        self.HEAD_COLOR = (0, 100, 0)
+        self.HEAD_COLOR = (0, 0, 0)
         self.BODY_COLOR = (0, 200, 0)
         self.FOOD_COLOR = (200, 0, 0)
         self.GAME_SPEED = 24
@@ -177,7 +186,7 @@ class Game():
             keys = pygame.key.get_pressed()
             pygame.event.pump()
 
-            if keys[pygame.K_ESCAPE] or keys[pygame.K_Q]:
+            if keys[pygame.K_ESCAPE] or keys[pygame.K_q]:
                 logger.info('ACTION: KEY PRESSED: ESCAPE or Q')
                 break
 
@@ -248,6 +257,10 @@ def main():
         pygame.display.set_caption("SNAKE GAME  |  Score: " + str(game.score))
         pygame.display.update()
         game.fps.tick(var.GAME_SPEED)
+
+logger = logging.getLogger(__name__) # Setting logger
+environ['SDL_VIDEO_CENTERED'] = '1' # Centering the window
+var = GlobalVariables() # Initializing global variables
 
 if __name__ == '__main__':
     main() # Execute game! Let's play ;)
