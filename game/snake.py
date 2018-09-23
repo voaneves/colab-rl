@@ -14,18 +14,17 @@ import matplotlib.pyplot as plt
 
 __author__ = "Victor Neves"
 __license__ = "MIT"
-__version__ = "0.3"
+__version__ = "1.0"
 __maintainer__ = "Victor Neves"
 __email__ = "victorneves478@gmail.com"
 __status__ = "Production"
 
 actions = {0:'LEFT', 1:'RIGHT', 2:'UP', 3:'DOWN', 4:'idle'}
 
-class GlobalVariables():
+class GlobalVariables:
     """Global variables to be used while drawing and moving the snake game.
 
     Attributes:
-        BOARD_SIZE: The size in blocks of the snake game.
         BLOCK_SIZE: The size in pixels of a block.
         HEAD_COLOR: Color of the head.
         BODY_COLOR: Color of the body.
@@ -41,10 +40,11 @@ class GlobalVariables():
         self.FOOD_COLOR = (200, 0, 0)
         self.GAME_SPEED = 24
 
-        if self.BOARD_SIZE >= 50:
-            logger.warning('WARNING: BOARD IS TOO BIG, IT MAY RUN SLOWER')
+        if self.BOARD_SIZE > 50:
+            logger.warning('WARNING: BOARD IS TOO BIG, IT MAY RUN SLOWER THAN USUAL.')
 
-class Snake():
+
+class Snake:
     """Player (snake) class which initializes head, body and orientation.
 
     The body attribute represents a list of positions of the body, which are in-
@@ -129,7 +129,7 @@ class Snake():
         return self.body
 
 
-class FoodGenerator():
+class FoodGenerator:
     """Generate and keep track of food.
 
     Attributes:
@@ -164,7 +164,7 @@ class FoodGenerator():
         self.is_food_on_screen = bool_value
 
 
-class Game():
+class Game:
     """Hold the game window and functions.
 
     Attributes:
@@ -173,9 +173,12 @@ class Game():
         score: Keeps track of how many food pieces were eaten.
         snake: The actual snake who is going to be played.
         food_generator: Generator of food which responds to the snake.
+        food_pos: Position of the food on the board.
+        game_over: Flag for game_over.
     """
-    def __init__(self):
+    def __init__(self, board_size = 30):
         """Initialize window, fps and score."""
+        var.BOARD_SIZE = board_size
         self.reset()
 
     def reset(self):
@@ -232,16 +235,16 @@ class Game():
             self.over()
         elif keys[pygame.K_RIGHT]:
             logger.info('ACTION: KEY PRESSED: RIGHT')
-            self.snake.change_orientation("RIGHT")
+            return "RIGHT"
         elif keys[pygame.K_LEFT]:
             logger.info('ACTION: KEY PRESSED: LEFT')
-            self.snake.change_orientation("LEFT")
+            return "LEFT"
         elif keys[pygame.K_UP]:
             logger.info('ACTION: KEY PRESSED: UP')
-            self.snake.change_orientation("UP")
+            return "UP"
         elif keys[pygame.K_DOWN]:
             logger.info('ACTION: KEY PRESSED: DOWN')
-            self.snake.change_orientation("DOWN")
+            return "DOWN"
 
     def state(self):
         """Create a matrix of the current state of the game."""
@@ -255,11 +258,12 @@ class Game():
 
         return canvas
 
-    def play(self, action):
-        assert action in range(5), "Invalid action."
+    def play(self, action, player):
+        """Move the snake to the direction, eat and check collision."""
         self.snake.change_orientation(action)
-
         self.food_pos = self.generate_food()
+        self.scored = False
+
         if self.snake.move(self.food_pos):
             self.scored = True
             self.score = self.snake.length
@@ -268,16 +272,24 @@ class Game():
         if self.snake.check_collision():
             self.game_over = True
 
+            if player == "HUMAN":
+                self.over()
+
     def get_score(self):
+        """Return the current score. Can be used as the reward function."""
         if self.game_over:
             score = -1
         elif self.scored:
             score = self.snake.length
         else:
             score = 0
+
         return score
 
     def gradient(self, colors, steps, components = 3):
+        """Function to create RGB gradients given 2 colors and steps.
+
+        If component is changed to 4, it does the same to RGBA colors."""
         def linear_gradient(start, finish, substeps):
             yield start
             for i in range(1, substeps):
@@ -299,6 +311,7 @@ class Game():
         return result
 
     def draw(self, color_list):
+        """Draw the game, the snake and the food using pygame."""
         self.window.fill(pygame.Color(225, 225, 225))
 
         for part, color in zip(self.snake.body, color_list):
@@ -330,17 +343,12 @@ def main():
     current_size = 3 # Initial size of the snake
     color_list = game.gradient([(42, 42, 42), (152, 152, 152)],\
                                previous_size)
+
+    # Main loop, where the snake keeps going each tick. It generate food, check
+    # collisions and draw.
     while True:
-        game.handle_input()
-
-        game.food_pos = game.generate_food()
-        if game.snake.move(game.food_pos) == True :
-            game.score += 1
-            game.food_generator.set_food_on_screen(False)
-
-        if game.snake.check_collision():
-            game.over()
-
+        action = game.handle_input()
+        game.play(action, "HUMAN")
         game.draw(color_list)
 
         current_size = game.snake.length # Update the body size
@@ -351,9 +359,9 @@ def main():
 
         previous_size = current_size
 
+var = GlobalVariables() # Initializing GlobalVariables
 logger = logging.getLogger(__name__) # Setting logger
 environ['SDL_VIDEO_CENTERED'] = '1' # Centering the window
-var = GlobalVariables() # Initializing global variables
 
 if __name__ == '__main__':
     main() # Execute game! Let's play ;)
