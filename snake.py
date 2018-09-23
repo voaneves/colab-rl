@@ -9,14 +9,17 @@ from random import randrange # Random numbers used for the food
 import logging # Logging function for movements and errors
 from itertools import tee # For the color gradient on snake
 import pygame # This is the engine used in the game
+from numpy import zeros, ones, asarray
+import matplotlib.pyplot as plt
 
 __author__ = "Victor Neves"
 __license__ = "MIT"
-__version__ = "0.2"
+__version__ = "0.3"
 __maintainer__ = "Victor Neves"
 __email__ = "victorneves478@gmail.com"
 __status__ = "Production"
 
+actions = {0:'LEFT', 1:'RIGHT', 2:'UP', 3:'DOWN', 4:'idle'}
 
 class GlobalVariables():
     """Global variables to be used while drawing and moving the snake game.
@@ -61,9 +64,13 @@ class Snake():
                      [self.head[0] - 1, self.head[1]],
                      [self.head[0] - 2, self.head[1]]]
         self.orientation = "RIGHT"
+        self.length = 3
 
     def change_orientation(self, orientation):
         """Change current orientation given a set of rules."""
+
+        if isinstance(orientation, (int)):
+            orientation = actions[orientation]
         if orientation == "RIGHT" and not self.orientation == "LEFT":
             self.orientation = "RIGHT"
         elif orientation == "LEFT" and not self.orientation == "RIGHT":
@@ -89,9 +96,12 @@ class Snake():
 
         if self.head == food_pos:
             logger.info('EVENT: FOOD EATEN')
+            self.length = len(self.body)
+
             return True
         else:
             self.body.pop()
+
             return False
 
     def check_collision(self):
@@ -99,14 +109,17 @@ class Snake():
         turn."""
         if self.head[0] > (var.BOARD_SIZE - 1) or self.head[0] < 0:
             logger.info('EVENT: WALL COLLISION')
+
             return True
         elif self.head[1] > (var.BOARD_SIZE - 1) or self.head[1] < 0:
             logger.info('EVENT: WALL COLLISION')
+
             return True
 
         for body_part in self.body[1:]:
             if self.head == body_part:
                 logger.info('EVENT: BODY COLLISION')
+
                 return True
 
         return False
@@ -123,26 +136,22 @@ class FoodGenerator():
         pos: Current position of food.
         is_food_on_screen: Flag for existence of food.
     """
-    def __init__(self):
+    def __init__(self, body):
         """Initialize a food piece and set existence flag."""
-        self.pos = [randrange(1, var.BOARD_SIZE), randrange(1, var.BOARD_SIZE)]
-        self.is_food_on_screen = True
+        self.is_food_on_screen = False
+        self.pos = self.generate_food(body)
 
     def generate_food(self, body):
         """Generate food and verify if it's on a valid place."""
-        if self.is_food_on_screen == False:
+        if not self.is_food_on_screen:
             while True:
-                self.pos = [randrange(1, var.BOARD_SIZE), randrange(1, \
+                food = [randrange(1, var.BOARD_SIZE), randrange(1, \
                                                                 var.BOARD_SIZE)]
-                misplaced = False # Keeps track of food placed in the body.
 
-                for body_part in body[1:]:
-                    if self.pos == body_part:
-                        misplaced = True
-
-                if misplaced is True:
-                    pass
+                if food in body:
+                    continue
                 else:
+                    self.pos = food
                     break
 
             logger.info('EVENT: FOOD APPEARED')
@@ -162,13 +171,25 @@ class Game():
         window: pygame window to show the game.
         fps: Define Clock and ticks in which the game will be displayed.
         score: Keeps track of how many food pieces were eaten.
+        snake: The actual snake who is going to be played.
+        food_generator: Generator of food which responds to the snake.
     """
     def __init__(self):
         """Initialize window, fps and score."""
-        self.window = pygame.display.set_mode((var.BOARD_SIZE * var.BLOCK_SIZE,\
-                                            var.BOARD_SIZE * var.BLOCK_SIZE))
-        self.fps = pygame.time.Clock()
+        self.reset()
+
+    def reset(self):
         self.score = 0
+        self.snake = Snake()
+        self.food_generator = FoodGenerator(self.snake.body)
+        self.food_pos = self.food_generator.pos
+        self.scored = False
+        self.game_over = False
+
+    def create_window(self):
+        self.window = pygame.display.set_mode((var.BOARD_SIZE * var.BLOCK_SIZE,\
+                                               var.BOARD_SIZE * var.BLOCK_SIZE))
+        self.fps = pygame.time.Clock()
 
     def start(self):
         """Create some wait time before the actual drawing of the game."""
@@ -195,102 +216,140 @@ class Game():
         pygame.quit()
         exit()
 
-    def handle_input(self, snake, keys):
+    def is_won(self):
+        return self.snake.length > 3
+
+    def generate_food(self):
+        return self.food_generator.generate_food(self.snake.body)
+
+    def handle_input(self):
         """After getting current pressed keys, handle important cases."""
+        keys = pygame.key.get_pressed()
+        pygame.event.pump()
+
         if keys[pygame.K_ESCAPE] or keys[pygame.K_q]:
             logger.info('ACTION: KEY PRESSED: ESCAPE or Q')
             self.over()
         elif keys[pygame.K_RIGHT]:
             logger.info('ACTION: KEY PRESSED: RIGHT')
-            snake.change_orientation("RIGHT")
+            self.snake.change_orientation("RIGHT")
         elif keys[pygame.K_LEFT]:
             logger.info('ACTION: KEY PRESSED: LEFT')
-            snake.change_orientation("LEFT")
+            self.snake.change_orientation("LEFT")
         elif keys[pygame.K_UP]:
             logger.info('ACTION: KEY PRESSED: UP')
-            snake.change_orientation("UP")
+            self.snake.change_orientation("UP")
         elif keys[pygame.K_DOWN]:
             logger.info('ACTION: KEY PRESSED: DOWN')
-            snake.change_orientation("DOWN")
+            self.snake.change_orientation("DOWN")
 
-def poly_gradient(colors, steps, components = 3):
-    def linear_gradient(start, finish, substeps):
-        yield start
-        for i in range(1, substeps):
-            yield tuple([(start[j] + (float(i) / (substeps-1)) * (finish[j]\
-                        - start[j])) for j in range(components)])
+    def state(self):
+        """Create a matrix of the current state of the game."""
+        body = self.snake.return_body()
+        canvas = zeros((var.BOARD_SIZE, var.BOARD_SIZE))
 
-    def pairs(seq):
-        a, b = tee(seq)
-        next(b, None)
-        return zip(a, b)
+        for part in body:
+            canvas[part[0] - 1, part[1] - 1] = 1.
 
-    result = []
-    substeps = int(float(steps) / (len(colors) - 1))
+        canvas[self.food_pos[0] - 1, self.food_pos[1] - 1] = .5
 
-    for a, b in pairs(colors):
-        for c in linear_gradient(a, b, substeps):
-            result.append(c)
+        return canvas
 
-    return result
+    def play(self, action):
+        assert action in range(5), "Invalid action."
+        self.snake.change_orientation(action)
+
+        self.food_pos = self.generate_food()
+        if self.snake.move(self.food_pos):
+            self.scored = True
+            self.score = self.snake.length
+            self.food_generator.set_food_on_screen(False)
+
+        if self.snake.check_collision():
+            self.game_over = True
+
+    def get_score(self):
+        if self.game_over:
+            score = -1
+        elif self.scored:
+            score = self.snake.length
+        else:
+            score = 0
+        return score
+
+    def gradient(self, colors, steps, components = 3):
+        def linear_gradient(start, finish, substeps):
+            yield start
+            for i in range(1, substeps):
+                yield tuple([(start[j] + (float(i) / (substeps-1)) * (finish[j]\
+                            - start[j])) for j in range(components)])
+
+        def pairs(seq):
+            a, b = tee(seq)
+            next(b, None)
+            return zip(a, b)
+
+        result = []
+        substeps = int(float(steps) / (len(colors) - 1))
+
+        for a, b in pairs(colors):
+            for c in linear_gradient(a, b, substeps):
+                result.append(c)
+
+        return result
+
+    def draw(self, color_list):
+        self.window.fill(pygame.Color(225, 225, 225))
+
+        for part, color in zip(self.snake.body, color_list):
+            pygame.draw.rect(self.window, color, pygame.Rect(part[0] *\
+                        var.BLOCK_SIZE, part[1] * var.BLOCK_SIZE, \
+                        var.BLOCK_SIZE, var.BLOCK_SIZE))
+
+        pygame.draw.rect(self.window, var.FOOD_COLOR,\
+                         pygame.Rect(self.food_pos[0] * var.BLOCK_SIZE,\
+                         self.food_pos[1] * var.BLOCK_SIZE, var.BLOCK_SIZE,\
+                         var.BLOCK_SIZE))
+
+        pygame.display.set_caption("SNAKE GAME  |  Score: " + str(self.score))
+        pygame.display.update()
+        self.fps.tick(var.GAME_SPEED)
+
 
 def main():
     """The main function where the game will be executed."""
     # Setup basic configurations for logging in this module
     logging.basicConfig(format = '%(asctime)s %(module)s %(levelname)s: %(message)s',
                         datefmt = '%m/%d/%Y %I:%M:%S %p', level = logging.INFO)
-    snake = Snake()
-    foodgenerator = FoodGenerator()
     game = Game()
-
+    game.create_window()
     game.start()
 
     # The main loop, it pump key_presses and update the board every tick.
-    previous_size = 3 # Initial size of the snake
+    previous_size = game.snake.length # Initial size of the snake
     current_size = 3 # Initial size of the snake
-    color_list = poly_gradient([(0, 0, 0), (152, 152, 152)], current_size)
+    color_list = game.gradient([(42, 42, 42), (152, 152, 152)],\
+                               previous_size)
     while True:
-        keys = pygame.key.get_pressed()
-        pygame.event.pump()
-        game.handle_input(snake, keys)
+        game.handle_input()
 
-        food_pos = foodgenerator.generate_food(snake.return_body())
-        if snake.move(food_pos) == True:
+        game.food_pos = game.generate_food()
+        if game.snake.move(game.food_pos) == True :
             game.score += 1
-            foodgenerator.set_food_on_screen(False)
+            game.food_generator.set_food_on_screen(False)
 
-        game.window.fill(pygame.Color(225, 225, 225))
-
-        head = 1
-        body = snake.return_body()
-        current_size = len(body) # Update the body size
-
-        if current_size != previous_size:
-            color_list = poly_gradient([(0, 0, 0), (152, 152, 152)],\
-                                       current_size)
-
-        for part, color in zip(body, color_list):
-            if head == 1:
-                pygame.draw.rect(game.window, color,\
-                            pygame.Rect(part[0]*var.BLOCK_SIZE, part[1] *\
-                            var.BLOCK_SIZE, var.BLOCK_SIZE, var.BLOCK_SIZE))
-                head = 0
-            else:
-                pygame.draw.rect(game.window, color, \
-                            pygame.Rect(part[0] * var.BLOCK_SIZE, part[1] *\
-                            var.BLOCK_SIZE, var.BLOCK_SIZE, var.BLOCK_SIZE))
-
-        previous_size = current_size
-        pygame.draw.rect(game.window, var.FOOD_COLOR, pygame.Rect(food_pos[0]\
-                         * var.BLOCK_SIZE, food_pos[1] * var.BLOCK_SIZE,\
-                         var.BLOCK_SIZE, var.BLOCK_SIZE))
-
-        if snake.check_collision() == True:
+        if game.snake.check_collision():
             game.over()
 
-        pygame.display.set_caption("SNAKE GAME  |  Score: " + str(game.score))
-        pygame.display.update()
-        game.fps.tick(var.GAME_SPEED)
+        game.draw(color_list)
+
+        current_size = game.snake.length # Update the body size
+
+        if current_size > previous_size:
+            color_list = game.gradient([(42, 42, 42), (152, 152, 152)],\
+                                       game.snake.length)
+
+        previous_size = current_size
 
 logger = logging.getLogger(__name__) # Setting logger
 environ['SDL_VIDEO_CENTERED'] = '1' # Centering the window
