@@ -8,8 +8,9 @@ from os import environ # To center the game window the best possible
 from random import randrange # Random numbers used for the food
 import logging # Logging function for movements and errors
 from itertools import tee # For the color gradient on snake
+# !pip install pygame # Jupyter Notebook
 import pygame # This is the engine used in the game
-from numpy import zeros, ones, asarray
+from numpy import zeros
 import matplotlib.pyplot as plt
 
 __author__ = "Victor Neves"
@@ -20,6 +21,7 @@ __email__ = "victorneves478@gmail.com"
 __status__ = "Production"
 
 actions = {0:'LEFT', 1:'RIGHT', 2:'UP', 3:'DOWN', 4:'idle'}
+forbidden_moves = [(0, 1), (1, 0), (2, 3), (3, 2)]
 
 class GlobalVariables:
     """Global variables to be used while drawing and moving the snake game.
@@ -33,7 +35,7 @@ class GlobalVariables:
     """
     def __init__(self):
         """Initialize all global variables."""
-        self.BOARD_SIZE = 30
+        self.BOARD_SIZE = 10
         self.BLOCK_SIZE = 20
         self.HEAD_COLOR = (0, 0, 0)
         self.BODY_COLOR = (0, 200, 0)
@@ -41,11 +43,11 @@ class GlobalVariables:
         self.GAME_SPEED = 24
 
         if self.BOARD_SIZE > 50:
-            logger.warning('WARNING: BOARD IS TOO BIG, IT MAY RUN SLOWER THAN USUAL.')
+            logger.warning('WARNING: BOARD IS TOO BIG, IT MAY RUN SLOWER.')
 
 
 class Snake:
-    """Player (snake) class which initializes head, body and orientation.
+    """Player (snake) class which initializes head, body and board.
 
     The body attribute represents a list of positions of the body, which are in-
     cremented when moving/eating on the position [0]. The orientation represents
@@ -63,33 +65,24 @@ class Snake:
         self.body = [[self.head[0], self.head[1]],
                      [self.head[0] - 1, self.head[1]],
                      [self.head[0] - 2, self.head[1]]]
-        self.orientation = "RIGHT"
+        self.previous_action = 1
         self.length = 3
 
-    def change_orientation(self, orientation):
-        """Change current orientation given a set of rules."""
-
-        if isinstance(orientation, (int)):
-            orientation = actions[orientation]
-        if orientation == "RIGHT" and not self.orientation == "LEFT":
-            self.orientation = "RIGHT"
-        elif orientation == "LEFT" and not self.orientation == "RIGHT":
-            self.orientation = "LEFT"
-        elif orientation == "UP" and not self.orientation == "DOWN":
-            self.orientation = "UP"
-        elif orientation == "DOWN" and not self.orientation == "UP":
-            self.orientation = "DOWN"
-
-    def move(self, food_pos):
+    def move(self, action, food_pos):
         """According to orientation, move 1 block. If the head is not positioned
         on food, pop a body part. Else (food), return without popping."""
-        if self.orientation == "RIGHT":
-            self.head[0] += 1
-        elif self.orientation == "LEFT":
+        if action == 4 or (action, self.previous_action) in forbidden_moves:
+            action = self.previous_action
+        else:
+            self.previous_action = action
+
+        if action == 0:
             self.head[0] -= 1
-        elif self.orientation == "UP":
+        elif action == 1:
+            self.head[0] += 1
+        elif action == 2:
             self.head[1] -= 1
-        elif self.orientation == "DOWN":
+        elif action == 3:
             self.head[1] += 1
 
         self.body.insert(0, list(self.head))
@@ -115,12 +108,10 @@ class Snake:
             logger.info('EVENT: WALL COLLISION')
 
             return True
+        elif self.head in self.body[1:]:
+            logger.info('EVENT: BODY COLLISION')
 
-        for body_part in self.body[1:]:
-            if self.head == body_part:
-                logger.info('EVENT: BODY COLLISION')
-
-                return True
+            return True
 
         return False
 
@@ -170,19 +161,18 @@ class Game:
     Attributes:
         window: pygame window to show the game.
         fps: Define Clock and ticks in which the game will be displayed.
-        score: Keeps track of how many food pieces were eaten.
         snake: The actual snake who is going to be played.
         food_generator: Generator of food which responds to the snake.
         food_pos: Position of the food on the board.
         game_over: Flag for game_over.
     """
-    def __init__(self, board_size = 30):
+    def __init__(self, board_size = 10):
         """Initialize window, fps and score."""
         var.BOARD_SIZE = board_size
         self.reset()
 
     def reset(self):
-        self.score = 0
+        self.step = 0
         self.snake = Snake()
         self.food_generator = FoodGenerator(self.snake.body)
         self.food_pos = self.food_generator.pos
@@ -204,8 +194,9 @@ class Game:
 
     def over(self):
         """If collision with wall or body, end the game."""
-        pygame.display.set_caption("SNAKE GAME  |  Score: " + str(self.score) +\
-            "  |  GAME OVER. Press any Q or ESC to quit ...")
+        pygame.display.set_caption("SNAKE GAME  |  Score: "
+                            + str(self.snake.length - 3)
+                            + "  |  GAME OVER. Press any Q or ESC to quit ...")
         logger.info('EVENT: GAME OVER')
 
         while True:
@@ -225,7 +216,7 @@ class Game:
     def generate_food(self):
         return self.food_generator.generate_food(self.snake.body)
 
-    def handle_input(self):
+    def handle_input(self, previous_action):
         """After getting current pressed keys, handle important cases."""
         keys = pygame.key.get_pressed()
         pygame.event.pump()
@@ -233,18 +224,20 @@ class Game:
         if keys[pygame.K_ESCAPE] or keys[pygame.K_q]:
             logger.info('ACTION: KEY PRESSED: ESCAPE or Q')
             self.over()
-        elif keys[pygame.K_RIGHT]:
-            logger.info('ACTION: KEY PRESSED: RIGHT')
-            return "RIGHT"
         elif keys[pygame.K_LEFT]:
             logger.info('ACTION: KEY PRESSED: LEFT')
-            return "LEFT"
+            return 0
+        elif keys[pygame.K_RIGHT]:
+            logger.info('ACTION: KEY PRESSED: RIGHT')
+            return 1
         elif keys[pygame.K_UP]:
             logger.info('ACTION: KEY PRESSED: UP')
-            return "UP"
+            return 2
         elif keys[pygame.K_DOWN]:
             logger.info('ACTION: KEY PRESSED: DOWN')
-            return "DOWN"
+            return 3
+        else:
+            return previous_action
 
     def state(self):
         """Create a matrix of the current state of the game."""
@@ -260,13 +253,14 @@ class Game:
 
     def play(self, action, player):
         """Move the snake to the direction, eat and check collision."""
-        self.snake.change_orientation(action)
-        self.food_pos = self.generate_food()
-        self.scored = False
+        assert action in range(5), "Invalid action."
 
-        if self.snake.move(self.food_pos):
+        self.scored = False
+        self.step += 1
+        self.food_pos = self.generate_food()
+
+        if self.snake.move(action, self.food_pos):
             self.scored = True
-            self.score = self.snake.length
             self.food_generator.set_food_on_screen(False)
 
         if self.snake.check_collision():
@@ -275,16 +269,14 @@ class Game:
             if player == "HUMAN":
                 self.over()
 
-    def get_score(self):
+    def get_reward(self):
         """Return the current score. Can be used as the reward function."""
         if self.game_over:
-            score = -1
+            return -1
         elif self.scored:
-            score = self.snake.length
-        else:
-            score = 0
+            return self.snake.length
 
-        return score
+        return 0
 
     def gradient(self, colors, steps, components = 3):
         """Function to create RGB gradients given 2 colors and steps.
@@ -324,7 +316,8 @@ class Game:
                          self.food_pos[1] * var.BLOCK_SIZE, var.BLOCK_SIZE,\
                          var.BLOCK_SIZE))
 
-        pygame.display.set_caption("SNAKE GAME  |  Score: " + str(self.score))
+        pygame.display.set_caption("SNAKE GAME  |  Score: "
+                                    + str(self.snake.length - 3))
         pygame.display.update()
         self.fps.tick(var.GAME_SPEED)
 
@@ -347,7 +340,7 @@ def main():
     # Main loop, where the snake keeps going each tick. It generate food, check
     # collisions and draw.
     while True:
-        action = game.handle_input()
+        action = game.handle_input(game.snake.previous_action)
         game.play(action, "HUMAN")
         game.draw(color_list)
 
