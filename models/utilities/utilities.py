@@ -94,7 +94,7 @@ def CNN1(optimizer, loss, stack, input_size, output_size):
 
     return model
 
-def CNN2(optimizer, loss, input_shape, output_size, min_neurons = 16,
+def CNN2(optimizer, loss, stack, input_size, output_size, min_neurons = 16,
          max_neurons = 128, kernel_size = (3,3), layers = 4):
     # INPUTS
     # size     - size of the input images
@@ -161,17 +161,17 @@ def CNN3(optimizer, loss, stack, input_size, output_size, drop_prob = 0.1):
 
 def CNN_DUELING(optimizer, loss, stack, input_size, output_size):
     inputs = Input(shape = (stack, input_size, input_size))
-    net = Conv2D(16, 8, strides = (4, 4), activation = 'relu')(inputs)
-    net = Conv2D(32, 4, strides = (2, 2), activation = 'relu')(net)
+    net = Conv2D(16, (3, 3), activation = 'relu')(inputs)
+    net = Conv2D(32, (3, 3), activation = 'relu')(net)
     net = Flatten()(net)
     advt = Dense(256, activation = 'relu')(net)
-    advt = Dense(num_actions)(advt)
+    advt = Dense(output_size)(advt)
     value = Dense(256, activation = 'relu')(net)
     value = Dense(1)(value)
     # now to combine the two streams
     advt = Lambda(lambda advt: advt - tf.reduce_mean(advt, axis = -1,
                                                      keep_dims = True))(advt)
-    value = Lambda(lambda value: tf.tile(value, [1, num_actions]))(value)
+    value = Lambda(lambda value: tf.tile(value, [1, output_size]))(value)
     final = Add()([value, advt])
     model = Model(inputs = inputs, outputs = final)
     model.compile(optimizer = optimizer, loss = loss)
