@@ -5,7 +5,7 @@
 
 from sys import exit # To close the window when the game is over
 from os import environ # To center the game window the best possible
-from random # Random numbers used for the food
+import random # Random numbers used for the food
 import logging # Logging function for movements and errors
 from itertools import tee # For the color gradient on snake
 # !pip install pygame # Jupyter Notebook

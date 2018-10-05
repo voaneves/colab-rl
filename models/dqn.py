@@ -11,7 +11,7 @@ Arguments:
 
 import numpy as np
 from os import path, environ, sys
-from random import sample, random
+import random
 
 import inspect # Making relative imports from parallel folders possible
 currentdir = path.dirname(path.abspath(inspect.getfile(inspect.currentframe())))
