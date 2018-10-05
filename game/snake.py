@@ -5,12 +5,12 @@
 
 from sys import exit # To close the window when the game is over
 from os import environ # To center the game window the best possible
-from random import randrange # Random numbers used for the food
+from random # Random numbers used for the food
 import logging # Logging function for movements and errors
 from itertools import tee # For the color gradient on snake
 # !pip install pygame # Jupyter Notebook
 import pygame # This is the engine used in the game
-from numpy import zeros
+import numpy as np
 import matplotlib.pyplot as plt
 
 __author__ = "Victor Neves"
@@ -136,8 +136,8 @@ class FoodGenerator:
         """Generate food and verify if it's on a valid place."""
         if not self.is_food_on_screen:
             while True:
-                food = [randrange(1, var.BOARD_SIZE), randrange(1, \
-                                                                var.BOARD_SIZE)]
+                food = [int((var.BOARD_SIZE - 1) * random.random()),
+                        int((var.BOARD_SIZE - 1) * random.random())]
 
                 if food in body:
                     continue
@@ -242,7 +242,7 @@ class Game:
     def state(self):
         """Create a matrix of the current state of the game."""
         body = self.snake.return_body()
-        canvas = zeros((var.BOARD_SIZE, var.BOARD_SIZE))
+        canvas = np.zeros((var.BOARD_SIZE, var.BOARD_SIZE))
 
         for part in body:
             canvas[part[0] - 1, part[1] - 1] = 1.
