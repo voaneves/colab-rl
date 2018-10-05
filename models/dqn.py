@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""simple_dqn: First try to create a AI for SnakeGame. Is it good enough?
+"""simple_dqn: First try to create an AI for SnakeGame. Is it good enough?
 
 Arguments:
     --load FILE.h5: load a previously trained model in '.h5' format.
@@ -213,7 +213,7 @@ class Agent:
 				r = game.get_reward()
 				S_prime = self.get_game_data(game)
 				if game.snake.check_collision()\
-				   or game.step > (100 * game.snake.length):
+				   or game.step > (50 * game.snake.length):
 					game_over = True
 				transition = [S, a, r, S_prime, game_over]
 				self.memory.remember(*transition)
@@ -282,7 +282,7 @@ class Agent:
 
 					previous_size = current_size
 				if game.snake.check_collision()\
-				   or game.step > (100 * game.snake.length):
+				   or game.step > (50 * game.snake.length):
 					game_over = True
 
 				if game_over:
