@@ -245,9 +245,9 @@ class Game:
         canvas = np.zeros((var.BOARD_SIZE, var.BOARD_SIZE))
 
         for part in body:
-            canvas[part[0] - 1, part[1] - 1] = 1.
+            canvas[part[0], part[1]] = 1.
 
-        canvas[self.food_pos[0] - 1, self.food_pos[1] - 1] = .5
+        canvas[self.food_pos[0], self.food_pos[1]] = .5
 
         return canvas
 

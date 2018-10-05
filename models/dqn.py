@@ -68,12 +68,25 @@ class ExperienceReplay:
         if len(self.memory) < batch_size:
             return None
 
-        samples = np.array(sample(self.memory, batch_size))
-        if not hasattr(self, 'batch_function'):
-            self.set_batch_function(model, self.input_shape, batch_size,
-                                    model.get_output_shape_at(0)[-1], gamma)
-
-        S, targets = self.batch_function([samples])
+        nb_actions = model.get_output_shape_at(0)[-1]
+        samples = np.array(random.sample(self.memory, batch_size))
+        input_dim = np.prod(self.input_shape)
+        S = samples[:, 0 : input_dim]
+        a = samples[:, input_dim]
+        r = samples[:, input_dim + 1]
+        S_prime = samples[:, input_dim + 2 : 2 * input_dim + 2]
+        game_over = samples[:, 2 * input_dim + 2]
+        r = r.repeat(nb_actions).reshape((batch_size, nb_actions))
+        game_over = game_over.repeat(nb_actions).reshape((batch_size, nb_actions))
+        S = S.reshape((batch_size, ) + self.input_shape)
+        S_prime = S_prime.reshape((batch_size, ) + self.input_shape)
+        X = np.concatenate([S, S_prime], axis=0)
+        Y = model.predict(X)
+        Qsa = np.max(Y[batch_size:], axis=1).repeat(nb_actions).reshape((batch_size, nb_actions))
+        delta = np.zeros((batch_size, nb_actions))
+        a = np.cast['int'](a)
+        delta[np.arange(batch_size), a] = 1
+        targets = (1 - delta) * Y[:batch_size] + delta * (r + gamma * (1 - game_over) * Qsa)
 
         return S, targets
 
@@ -91,37 +104,6 @@ class ExperienceReplay:
     def reset_memory(self):
         """Set the memory as a blank list."""
         self.memory = []
-
-    def set_batch_function(self, model, input_shape, batch_size,
-                           nb_actions, gamma):
-        """Set the batch function that returns targets."""
-        input_dim = np.prod(input_shape)
-        samples = K.placeholder(shape = (batch_size, input_dim * 2 + 3))
-        S = samples[:, 0 : input_dim]
-        a = samples[:, input_dim]
-        r = samples[:, input_dim + 1]
-        S_prime = samples[:, input_dim + 2 : 2 * input_dim + 2]
-        game_over = samples[:, 2 * input_dim + 2 : 2 * input_dim + 3]
-        r = K.reshape(r, (batch_size, 1))
-        r = K.repeat(r, nb_actions)
-        r = K.reshape(r, (batch_size, nb_actions))
-        game_over = K.repeat(game_over, nb_actions)
-        game_over = K.reshape(game_over, (batch_size, nb_actions))
-        S = K.reshape(S, (batch_size, ) + input_shape)
-        S_prime = K.reshape(S_prime, (batch_size, ) + input_shape)
-        X = K.concatenate([S, S_prime], axis = 0)
-        Y = model(X)
-        Qsa = K.max(Y[batch_size:], axis = 1)
-        Qsa = K.reshape(Qsa, (batch_size, 1))
-        Qsa = K.repeat(Qsa, nb_actions)
-        Qsa = K.reshape(Qsa, (batch_size, nb_actions))
-        delta = K.reshape(self.one_hot(a, nb_actions), (batch_size, nb_actions))
-        targets = (1 - delta) * Y[:batch_size] + delta * (r + gamma * (1 - game_over) * Qsa)
-        self.batch_function = K.function(inputs = [samples], outputs = [S, targets])
-
-    def one_hot(self, seq, num_classes):
-        """Hot encoding for a seq, according to number of classes."""
-        return K.one_hot(K.reshape(K.cast(seq, "int32"), (-1, 1)), num_classes)
 
 
 class Agent:
@@ -157,9 +139,12 @@ class Agent:
 		"""Reset memory if necessary."""
 		self.exp_replay.reset_memory()
 
-	def get_game_data(self, game):
+	def get_game_data(self, game, game_over):
 		"""Create a list with 4 frames and append/pop them each frame."""
-		frame = game.state()
+		if game_over:
+			frame = np.zeros((board_size, board_size))
+		else:
+			frame = game.state()
 
 		if self.frames is None:
 			self.frames = [frame] * self.nb_frames
@@ -197,11 +182,11 @@ class Agent:
 				self.reset_memory()
 
 			game_over = False
-			S = self.get_game_data(game)
+			S = self.get_game_data(game, game_over)
 
 			while not game_over:
 				game.food_pos = game.generate_food()
-				rand = np.random.random()
+				rand = random.random()
 
 				if rand < epsilon or epoch < observe:
 					a = int(5 * rand)
@@ -211,10 +196,13 @@ class Agent:
 
 				game.play(a, "ROBOT")
 				r = game.get_reward()
-				S_prime = self.get_game_data(game)
+
 				if game.snake.check_collision()\
 				   or game.step > (50 * game.snake.length):
 					game_over = True
+
+				S_prime = self.get_game_data(game, game_over)
+
 				transition = [S, a, r, S_prime, game_over]
 				self.memory.remember(*transition)
 				S = S_prime
