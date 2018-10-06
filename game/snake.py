@@ -35,7 +35,7 @@ class GlobalVariables:
     """
     def __init__(self):
         """Initialize all global variables."""
-        self.BOARD_SIZE = 10
+        self.BOARD_SIZE = 30
         self.BLOCK_SIZE = 20
         self.HEAD_COLOR = (0, 0, 0)
         self.BODY_COLOR = (0, 200, 0)
@@ -166,7 +166,7 @@ class Game:
         food_pos: Position of the food on the board.
         game_over: Flag for game_over.
     """
-    def __init__(self, board_size = 10):
+    def __init__(self, board_size = 30):
         """Initialize window, fps and score."""
         var.BOARD_SIZE = board_size
         self.reset()
