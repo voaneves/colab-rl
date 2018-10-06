@@ -119,7 +119,6 @@ def CNN2(optimizer, loss, stack, input_size, output_size, min_neurons = 16,
     # Add convolutional layers
     for i in range(0, n_layers):
         if i == 0:
-            shape = (size[0], size[1], size[2])
             model.add(Conv2D(neurons[i], KERNEL, input_shape = (stack,
                                                                 input_size,
                                                                 input_size)))
