@@ -19,7 +19,7 @@ parentdir = path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
 from game.snake import Game
-from keras.optimizers import Adam, RMSprop
+from keras.optimizers import RMSprop, Nadam
 from keras import backend as K
 from utilities.utilities import *
 
