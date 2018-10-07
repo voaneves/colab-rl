@@ -142,7 +142,7 @@ class Agent:
     def get_game_data(self, game, game_over):
         """Create a list with 4 frames and append/pop them each frame."""
         if game_over:
-            frame = np.zeros((board_size, board_size))
+            frame = np.zeros((self.board_size, self.board_size))
         else:
             frame = game.state()
 
