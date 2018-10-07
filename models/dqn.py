@@ -251,10 +251,8 @@ class Agent:
 				filename = []
 
 			while not game_over:
-				q = model.predict(S)[0]
-				possible_actions = range(0, 5)
-				q = [q[i] for i in possible_actions]
-				action = possible_actions[np.argmax(q)]
+				q = self.model.predict(S)
+				action = int(np.argmax(q[0]))
 
 				game.play(action, "ROBOT")
 				S = self.get_game_data(game)
