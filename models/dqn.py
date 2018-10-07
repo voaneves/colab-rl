@@ -284,10 +284,10 @@ class Agent:
                 win_count += 1
 
         print("Accuracy: {} %".format(100. * win_count / nb_epoch))
-		print("Mean size: {} | Biggest size: {} | Smallest size: {}"\
+        print("Mean size: {} | Biggest size: {} | Smallest size: {}"\
               .format(np.mean(result_size), np.max(result_size),
                       np.min(result_size)))
-		print("Mean steps: {} | Biggest step: {} | Smallest step: {}"\
+        print("Mean steps: {} | Biggest step: {} | Smallest step: {}"\
               .format(np.mean(result_step), np.max(result_step),\
                       np.min(result_step)))
 
