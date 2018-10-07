@@ -299,9 +299,14 @@ if __name__ == '__main__':
 
     if not arguments.status_visual:
         if not arguments.status_load:
-            model = CNN1(optimizer = RMSprop(), loss = clipped_error,
-                        stack = nb_frames, input_size = board_size,
-                        output_size = nb_actions)
+            if arguments.status_dueling:
+                model = CNN_DUELING(optimizer = RMSprop(), loss = clipped_error,
+                                    stack = nb_frames, input_size = board_size,
+                                    output_size = nb_actions)
+            else:
+                model = CNN1(optimizer = RMSprop(), loss = clipped_error,
+                            stack = nb_frames, input_size = board_size,
+                            output_size = nb_actions)
 
             print("Not using --load. Default behavior is to train the model "
                   + "and then play. Training:")
@@ -325,9 +330,14 @@ if __name__ == '__main__':
         agent.play(game, visual = False)
     else:
         if not arguments.status_load:
-            model = CNN1(optimizer = RMSprop(), loss = clipped_error,
-                        stack = nb_frames, input_size = board_size,
-                        output_size = nb_actions)
+            if arguments.status_dueling:
+                model = CNN_DUELING(optimizer = RMSprop(), loss = clipped_error,
+                                    stack = nb_frames, input_size = board_size,
+                                    output_size = nb_actions)
+            else:
+                model = CNN1(optimizer = RMSprop(), loss = clipped_error,
+                            stack = nb_frames, input_size = board_size,
+                            output_size = nb_actions)
 
             print("Not using --load. Default behavior is to train the model and"
                   + "then play. Training:")
