@@ -166,9 +166,10 @@ class Game:
         food_pos: Position of the food on the board.
         game_over: Flag for game_over.
     """
-    def __init__(self, board_size = 30):
+    def __init__(self, board_size = 30, local_state = False):
         """Initialize window, fps and score."""
         var.BOARD_SIZE = board_size
+        self.local_state = local_state
         self.reset()
 
     def reset(self):
@@ -240,18 +241,17 @@ class Game:
             return previous_action
 
     def eval_local_safety(self, canvas, body):
-        if (body[0][0] + 1) > (var.BOARD_SIZE - 1) or (body[0][0] + 1) < 0\
-                  or ([body[0][0] + 1, body[0][1]]) in body[1:]:
-                    canvas[var.BOARD_SIZE - 1, 0] = 1
-        if (body[0][0] - 1) > (var.BOARD_SIZE - 1) or (body[0][0] - 1) < 0\
-                  or ([body[0][0] - 1, body[0][1]]) in body[1:]:
-                    canvas[var.BOARD_SIZE - 1, 1] = 1
-        if (body[0][1] - 1) > (var.BOARD_SIZE - 1) or (body[0][1] - 1) < 0\
-                  or ([body[0][0], body[0][1] - 1]) in body[1:]:
-                    canvas[var.BOARD_SIZE - 1, 2] = 1
-        if (body[0][1] + 1) > (var.BOARD_SIZE - 1) or (body[0][1] + 1) < 0\
-                  or ([body[0][0], body[0][1] + 1]) in body[1:]:
-                    canvas[var.BOARD_SIZE - 1, 3] = 1
+        """Evaluate the safety of the head's possible next movements."""
+        if (body[0][0] + 1) > (var.BOARD_SIZE - 1)\
+            or ([body[0][0] + 1, body[0][1]]) in body[1:]:
+            canvas[var.BOARD_SIZE - 1, 0] = 1
+        if (body[0][0] - 1) < 0 or ([body[0][0] - 1, body[0][1]]) in body[1:]:
+            canvas[var.BOARD_SIZE - 1, 1] = 1
+        if (body[0][1] - 1) < 0 or ([body[0][0], body[0][1] - 1]) in body[1:]:
+            canvas[var.BOARD_SIZE - 1, 2] = 1
+        if (body[0][1] + 1) > (var.BOARD_SIZE - 1)\
+            or ([body[0][0], body[0][1] + 1]) in body[1:]:
+            canvas[var.BOARD_SIZE - 1, 3] = 1
 
         return canvas
 
@@ -259,7 +259,9 @@ class Game:
         """Create a matrix of the current state of the game."""
         body = self.snake.return_body()
         canvas = np.zeros((var.BOARD_SIZE, var.BOARD_SIZE))
-        # canvas = self.eval_local_safety(canvas, body)
+
+        if self.local_state:
+            canvas = self.eval_local_safety(canvas, body)
 
         for part in body:
             canvas[part[0], part[1]] = 1.
