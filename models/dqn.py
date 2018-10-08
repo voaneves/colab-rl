@@ -62,35 +62,65 @@ class ExperienceReplay:
         if self.memory_size > 0 and len(self.memory) > self.memory_size:
             self.memory.pop(0)
 
-    def get_batch(self, model, batch_size, gamma = 0.9):
+    def get_batch(self, target, model, batch_size, gamma = 0.9):
         """Function to sample, set batch function and use it for targets."""
         if len(self.memory) < batch_size:
             return None
 
-        nb_actions = model.get_output_shape_at(0)[-1]
-        samples = np.array(random.sample(self.memory, batch_size))
-        input_dim = np.prod(self.input_shape)
-        S = samples[:, 0 : input_dim]
-        a = samples[:, input_dim]
-        r = samples[:, input_dim + 1]
-        S_prime = samples[:, input_dim + 2 : 2 * input_dim + 2]
-        game_over = samples[:, 2 * input_dim + 2]
-        r = r.repeat(nb_actions).reshape((batch_size, nb_actions))
-        game_over = game_over.repeat(nb_actions)\
-                             .reshape((batch_size, nb_actions))
-        S = S.reshape((batch_size, ) + self.input_shape)
-        S_prime = S_prime.reshape((batch_size, ) + self.input_shape)
-        X = np.concatenate([S, S_prime], axis=0)
-        Y = model.predict(X)
-        Qsa = np.max(Y[batch_size:], axis=1).repeat(nb_actions)\
-                                            .reshape((batch_size, nb_actions))
-        delta = np.zeros((batch_size, nb_actions))
-        a = np.cast['int'](a)
-        delta[np.arange(batch_size), a] = 1
-        targets = ((1 - delta) * Y[:batch_size]
-                  + delta * (r + gamma * (1 - game_over) * Qsa))
+        if target is not None:
+            nb_actions = model.get_output_shape_at(0)[-1]
+            samples = np.array(random.sample(self.memory, batch_size))
+            input_dim = np.prod(self.input_shape)
+            S = samples[:, 0 : input_dim]
+            a = samples[:, input_dim]
+            r = samples[:, input_dim + 1]
+            S_prime = samples[:, input_dim + 2 : 2 * input_dim + 2]
+            game_over = samples[:, 2 * input_dim + 2]
+            r = r.repeat(nb_actions).reshape((batch_size, nb_actions))
+            game_over = game_over.repeat(nb_actions)\
+                                 .reshape((batch_size, nb_actions))
+            S = S.reshape((batch_size, ) + self.input_shape)
+            S_prime = S_prime.reshape((batch_size, ) + self.input_shape)
+            X = np.concatenate([S, S_prime], axis = 0)
+            q_model = model.predict(X)
+            actions = np.argmax(q_model[batch_size:], axis = 1)
+            Y_target = target.predict(X[batch_size:])
+            Qsa = np.max(Y_target[actions], axis = 1).repeat(nb_actions)\
+                                                     .reshape((batch_size, nb_actions))
+            delta = np.zeros((batch_size, nb_actions))
+            a = np.cast['int'](a)
+            delta[np.arange(batch_size), a] = 1
+            targets = ((1 - delta) * q_model[:batch_size]
+                      + delta * (r + gamma * (1 - game_over) * Qsa))
+            errors = np.abs(targets - np.max(q_model[:batch_size]))
 
-        return S, targets
+            return S, targets, errors
+        else:
+            nb_actions = model.get_output_shape_at(0)[-1]
+            samples = np.array(random.sample(self.memory, batch_size))
+            input_dim = np.prod(self.input_shape)
+            S = samples[:, 0 : input_dim]
+            a = samples[:, input_dim]
+            r = samples[:, input_dim + 1]
+            S_prime = samples[:, input_dim + 2 : 2 * input_dim + 2]
+            game_over = samples[:, 2 * input_dim + 2]
+            r = r.repeat(nb_actions).reshape((batch_size, nb_actions))
+            game_over = game_over.repeat(nb_actions)\
+                                 .reshape((batch_size, nb_actions))
+            S = S.reshape((batch_size, ) + self.input_shape)
+            S_prime = S_prime.reshape((batch_size, ) + self.input_shape)
+            X = np.concatenate([S, S_prime], axis = 0)
+            Y = model.predict(X)
+            Qsa = np.max(Y[batch_size:], axis = 1).repeat(nb_actions)\
+                                                .reshape((batch_size, nb_actions))
+            delta = np.zeros((batch_size, nb_actions))
+            a = np.cast['int'](a)
+            delta[np.arange(batch_size), a] = 1
+            targets = ((1 - delta) * Y[:batch_size]
+                      + delta * (r + gamma * (1 - game_over) * Qsa))
+            errors = np.abs(targets - np.max(Y[:batch_size]))
+
+        return S, targets, errors
 
     @property
     def memory_size(self):
@@ -117,8 +147,8 @@ class Agent:
     nb_frames: ammount of frames for each sars.
     frames: the frames in each sars.
     """
-    def __init__(self, model, memory = None, memory_size = 1000, nb_frames = 4,
-                 board_size = 10):
+    def __init__(self, model, target, memory = None, memory_size = 1000,
+                 nb_frames = 4, board_size = 10):
         """Initialize the agent with given attributes."""
         if memory:
             self.memory = memory
@@ -126,9 +156,11 @@ class Agent:
             self.memory = ExperienceReplay(memory_size)
 
         self.model = model
+        self.target = target
         self.nb_frames = nb_frames
         self.board_size = board_size
         self.frames = None
+        self.target_updates = 0
 
     @property
     def memory_size(self):
@@ -161,9 +193,13 @@ class Agent:
         """Reset frames to restart appending."""
         self.frames = None
 
+    def update_target_model(self):
+        self.target_updates += 1
+        self.target.set_weights(self.model.get_weights())
+
     def train(self, game, nb_epoch = 1000, batch_size = 50, gamma = 0.9,
-      epsilon = [1., .01], epsilon_rate = 0.5, reset_memory = False,
-      observe = 0):
+              epsilon = [1., .1], epsilon_rate = 0.5, reset_memory = False,
+              observe = 0, update_target_freq = 500):
         """The main training function, loops the game, remember and choose best
         action given game state (frames)."""
         if type(epsilon)  in {tuple, list}:
@@ -210,20 +246,38 @@ class Agent:
                 S = S_prime
 
                 if epoch >= observe:
-                    batch = self.memory.get_batch(model = model,
-                                                  batch_size = batch_size,
-                                                  gamma = gamma)
+                    if self.target is not None:
+                        if epoch <= 500:
+                            batch = self.memory.get_batch(model = self.model,
+                                                          target = None,
+                                                          batch_size = batch_size,
+                                                          gamma = gamma)
+
+                        if epoch > 500:
+                            batch = self.memory.get_batch(model = self.model,
+                                                          target = self.target,
+                                                          batch_size = batch_size,
+                                                          gamma = gamma)
+                    else:
+                        batch = self.memory.get_batch(model = self.model,
+                                                      target = self.target,
+                                                      batch_size = batch_size,
+                                                      gamma = gamma)
 
                 if batch:
-                    inputs, targets = batch
+                    inputs, targets, errors = batch
                     if inputs is not None and targets is not None:
-                        loss += float(model.train_on_batch(inputs, targets))
+                        loss += float(self.model.train_on_batch(inputs, targets))
 
             if game.is_won():
                 win_count += 1
 
             if epsilon > final_epsilon and epoch >= observe:
                 epsilon -= delta
+
+            if self.target is not None:
+                if epoch % update_target_freq == 0:
+                    self.update_target_model()
 
             print("\tEpoch: {:03d}/{:03d} | Loss: {:.4f} | Epsilon: {:.2f}"\
                                                      .format(epoch + 1,
@@ -235,7 +289,6 @@ class Agent:
     def play(self, game, nb_epoch = 100, epsilon = 0., visual = False):
         """Play the game with the trained agent. Can use the visual tag to draw
             in pygame."""
-        model = self.model
         win_count = 0
         result_size = []
         result_step = []
@@ -296,6 +349,7 @@ if __name__ == '__main__':
     board_size = arguments.args.board_size
     nb_actions = arguments.args.nb_actions
     nb_frames = arguments.args.nb_frames
+    update_target_freq = arguments.args.update_freq
 
     if not arguments.status_visual:
         if not arguments.status_load:
@@ -303,23 +357,39 @@ if __name__ == '__main__':
                 model = CNN_DUELING(optimizer = RMSprop(), loss = clipped_error,
                                     stack = nb_frames, input_size = board_size,
                                     output_size = nb_actions)
+
+                target = None
+                if arguments.status_double:
+                    target = CNN_DUELING(optimizer = RMSprop(),
+                                         loss = clipped_error,
+                                         stack = nb_frames,
+                                         input_size = board_size,
+                                         output_size = nb_actions)
+
             else:
                 model = CNN1(optimizer = RMSprop(), loss = clipped_error,
                             stack = nb_frames, input_size = board_size,
                             output_size = nb_actions)
+
+                target = None
+                if arguments.status_double:
+                    target = CNN1(optimizer = RMSprop(), loss = clipped_error,
+                                  stack = nb_frames, input_size = board_size,
+                                  output_size = nb_actions)
 
             print("Not using --load. Default behavior is to train the model "
                   + "and then play. Training:")
 
             game = Game(board_size = board_size,
                         local_state = arguments.local_state)
-            agent = Agent(model = model, memory_size = -1,
+            agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size)
-            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8)
+            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8,
+                        update_target_freq = update_target_freq)
         else:
             game = Game(board_size = board_size,
                         local_state = arguments.local_state)
-            agent = Agent(model = model, memory_size = -1,
+            agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size)
 
             print("Loading file located in {}. We can play after that."
@@ -334,23 +404,38 @@ if __name__ == '__main__':
                 model = CNN_DUELING(optimizer = RMSprop(), loss = clipped_error,
                                     stack = nb_frames, input_size = board_size,
                                     output_size = nb_actions)
+                target = None
+                if arguments.status_double:
+                    target = CNN_DUELING(optimizer = RMSprop(),
+                                         loss = clipped_error,
+                                         stack = nb_frames,
+                                         input_size = board_size,
+                                         output_size = nb_actions)
+
             else:
                 model = CNN1(optimizer = RMSprop(), loss = clipped_error,
                             stack = nb_frames, input_size = board_size,
                             output_size = nb_actions)
+
+                target = None
+                if arguments.status_double:
+                    target = CNN1(optimizer = RMSprop(), loss = clipped_error,
+                                  stack = nb_frames, input_size = board_size,
+                                  output_size = nb_actions)
 
             print("Not using --load. Default behavior is to train the model and"
                   + "then play. Training:")
 
             game = Game(board_size = board_size,
                         local_state = arguments.local_state)
-            agent = Agent(model = model, memory_size = 150000,
+            agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames)
-            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8)
+            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8,
+                        update_target_freq = update_target_freq)
         else:
             game = Game(board_size = board_size,
                         local_state = arguments.local_state)
-            agent = Agent(model = model, memory_size = 150000,
+            agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames)
 
             print("Loading file located in {}. We can play after that."\
