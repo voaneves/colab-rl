@@ -4,3 +4,4 @@ models/dqn_visual1.py
 models/ddqn_per.py
 models/ddqn.py
 models/dqn-test.py
+models/keras.h5
