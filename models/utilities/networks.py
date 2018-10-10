@@ -101,7 +101,7 @@ def CNN_DUELING(optimizer, loss, stack, input_size, output_size):
     value = Dense(1)(value)
     # now to combine the two streams
     advt = Lambda(lambda advt: advt - tf.reduce_mean(advt, axis = -1,
-                                                     keep_dims = True))(advt)
+                                                     keepdims = True))(advt)
     value = Lambda(lambda value: tf.tile(value, [1, output_size]))(value)
     final = Add()([value, advt])
     model = Model(inputs = inputs, outputs = final)

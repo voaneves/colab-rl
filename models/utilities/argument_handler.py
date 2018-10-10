@@ -26,6 +26,7 @@ class HandleArguments:
             self.parser.add_argument("-v", "--visual", help = "define board size", required = False, action = 'store_true')
             self.parser.add_argument("-du", "--dueling", help = "use dueling DQN", required = False, action = 'store_true')
             self.parser.add_argument("-do", "--double", help = "use double DQN", required = False, action = 'store_true')
+            self.parser.add_argument("-p", "--per", help = "use Prioritized Experience Replay", required = False, action = 'store_true')
             self.parser.add_argument("-ls", "--local_state", help = "define board size", required = False, action = 'store_true')
             self.parser.add_argument("-g", "--board_size", help = "define board size", required = False, default = 10, type = int)
             self.parser.add_argument("-nf", "--nb_frames", help = "define board size", required = False, default = 4, type = int)
@@ -38,6 +39,7 @@ class HandleArguments:
             self.local_state = False
             self.dueling = False
             self.double = False
+            self.per = False
 
             if self.args.load:
                 script_dir = path.dirname(__file__) # Absolute dir the script is in
@@ -57,3 +59,6 @@ class HandleArguments:
 
             if self.args.double:
                 self.double = True
+
+            if self.args.per:
+                self.per = True

@@ -1,11 +1,31 @@
 #!/usr/bin/env python
 
-"""simple_dqn: First try to create an AI for SnakeGame. Is it good enough?
+"""dqn: First try to create an AI for SnakeGame. Is it good enough?
+
+This algorithm is a implementation of DQN, Double DQN logic (using a target
+network to have fixed Q-targets), Dueling DQN logic (Q(s,a) = Advantage + Value)
+and PER (Prioritized Experience Replay, using Sum Trees). You can read more
+about these on https://medium.freecodecamp.org/improvements-in-deep-q-learning-dueling-double-dqn-prioritized-experience-replay-and-fixed-58b130cc5682
+
+Possible usage:
+    * Simple DQN;
+    * DDQN;
+    * DDDQN;
+    * DDDQN + PER;
+    * a combination of any of the above.
 
 Arguments:
     --load FILE.h5: load a previously trained model in '.h5' format.
-    --board_size INT: assign the size of the board, a INT type.
-    --visual OPTIONAL: select wheter or not to draw the game in pygame.
+    --board_size INT: assign the size of the board, default = 10
+    --nb_frames INT: assign the number of frames per stack, default = 4.
+    --nb_actions INT: assign the number of actions possible, default = 5.
+    --update_freq INT: assign how often, in epochs, to update the target,
+      default = 500.
+    --visual: select wheter or not to draw the game in pygame.
+    --double: use a target network with double DQN logic.
+    --dueling: use dueling network logic, Q(s,a) = A + V.
+    --per: use Prioritized Experience Replay (based on Sum Trees).
+    --local_state: Verify is possible next moves are dangerous (field expertise)
 """
 
 import numpy as np
@@ -38,104 +58,151 @@ class ExperienceReplay:
     """The class that handles memory and experiences replay.
 
     Attributes:
-        fast: faster batch importing.
         memory: memory array to insert experiences.
         memory_size: the ammount of experiences to be stored in the memory.
         input_shape: the shape of the input which will be stored.
         batch_function: returns targets according to S.
+        per: flag for PER usage.
+        per_epsilon: used to replace "0" probabilities cases.
+        per_alpha: how much prioritization to use.
+        per_beta: importance sampling weights (IS_weights).
     """
-    def __init__(self, memory_size = 100, fast = True):
+    def __init__(self, memory_size = 100, per = False, alpha = 0.6,
+                 epsilon = 0.001, beta = 0.4, nb_epoch = 10000, decay = 0.5):
         """Initialize parameters and the memory array."""
-        self.fast = fast
-        self._memory_size = memory_size
-        self.reset_memory()
+        self.per = per
+        self.memory_size = memory_size
+        self.reset_memory() # Initiate the memory
+
+        if self.per:
+            self.per_epsilon = epsilon
+            self.per_alpha = alpha
+            self.per_beta = beta
+            self.per_beta_inc = (1.0 - self.per_beta) / (nb_epoch * decay)
+
+    def exp_size(self):
+        """Returns how much memory is stored."""
+        if self.per:
+            return self.exp
+        else:
+            return len(self.memory)
+
+    def get_priority(self, errors):
+        """Returns priority based on how much prioritization to use."""
+        return (errors + self.per_epsilon) ** self.per_alpha
+
+    def update(self, tree_indices, errors):
+        """Update a list of nodes, based on their errors."""
+        priorities = self.get_priority(errors)
+
+        for index, priority in zip(tree_indices, priorities):
+            self.memory.update(index, priority)
 
     def remember(self, s, a, r, s_prime, game_over):
         """Remember SARS' experiences, with the game_over parameter (done)."""
-        self.input_shape = s.shape[1:]
-        self.memory.append(np.concatenate([s.flatten(),
-                                           np.array(a).flatten(),
-                                           np.array(r).flatten(),
-                                           s_prime.flatten(),
-                                           1 * np.array(game_over).flatten()]))
+        if not hasattr(self, 'input_shape'):
+            self.input_shape = s.shape[1:] # set attribute only once
 
-        if self.memory_size > 0 and len(self.memory) > self.memory_size:
-            self.memory.pop(0)
+        experience = np.concatenate([s.flatten(),
+                                     np.array(a).flatten(),
+                                     np.array(r).flatten(),
+                                     s_prime.flatten(),
+                                     1 * np.array(game_over).flatten()])
 
-    def get_batch(self, target, model, batch_size, gamma = 0.9):
+        if self.per:
+            max_priority = self.memory.max_leaf()
+
+            if max_priority == 0:
+                max_priority = self.get_priority(0)
+
+            self.memory.insert(experience, max_priority)
+            self.exp += 1
+        else:
+            self.memory.append(experience)
+
+            if self.memory_size > 0 and self.exp_size() > self.memory_size:
+                self.memory.pop(0)
+
+    def get_samples(self, batch_size):
+        """Sample the memory according to PER flag."""
+        if self.per:
+            batch = [None] * batch_size
+            IS_weights = np.zeros((batch_size, ))
+            tree_indices = np.zeros((batch_size, ), dtype = np.int32)
+
+            memory_sum = self.memory.sum()
+            len_seg = memory_sum / batch_size
+            min_prob = self.memory.min_leaf() / memory_sum
+
+            for i in range(batch_size):
+                val = random.uniform(len_seg * i, len_seg * (i + 1))
+                tree_indices[i], priority, batch[i] = self.memory.retrieve(val)
+                prob = priority / self.memory.sum()
+                IS_weights[i] = np.power(prob / min_prob, -self.per_beta)
+
+            return np.array(batch), IS_weights, tree_indices
+
+        else:
+            return np.array(random.sample(self.memory, batch_size)), None, None
+
+    def get_targets(self, target, model, batch_size, gamma = 0.9):
         """Function to sample, set batch function and use it for targets."""
-        if len(self.memory) < batch_size:
+        if self.exp_size() < batch_size:
             return None
 
-        if target is not None:
-            nb_actions = model.get_output_shape_at(0)[-1]
-            samples = np.array(random.sample(self.memory, batch_size))
-            input_dim = np.prod(self.input_shape)
-            S = samples[:, 0 : input_dim]
-            a = samples[:, input_dim]
-            r = samples[:, input_dim + 1]
-            S_prime = samples[:, input_dim + 2 : 2 * input_dim + 2]
-            game_over = samples[:, 2 * input_dim + 2]
-            r = r.repeat(nb_actions).reshape((batch_size, nb_actions))
-            game_over = game_over.repeat(nb_actions)\
-                                 .reshape((batch_size, nb_actions))
-            S = S.reshape((batch_size, ) + self.input_shape)
-            S_prime = S_prime.reshape((batch_size, ) + self.input_shape)
-            X = np.concatenate([S, S_prime], axis = 0)
-            q_model = model.predict(X)
-            actions = np.argmax(q_model[batch_size:], axis = 1)
+        samples, IS_weights, tree_indices = self.get_samples(batch_size)
+        nb_actions = model.get_output_shape_at(0)[-1] # Get number of actions
+        input_dim = np.prod(self.input_shape) # Get the input shape, multiplied
+
+        S = samples[:, 0 : input_dim] # Seperate the states
+        a = samples[:, input_dim] # Separate the actions
+        r = samples[:, input_dim + 1] # Separate the rewards
+        S_prime = samples[:, input_dim + 2 : 2 * input_dim + 2] # Next_actions
+        game_over = samples[:, 2 * input_dim + 2] # Separate terminal flags
+
+        # Reshape the arrays to make them usable by the model.
+        r = r.repeat(nb_actions).reshape((batch_size, nb_actions))
+        game_over = game_over.repeat(nb_actions)\
+                             .reshape((batch_size, nb_actions))
+        S = S.reshape((batch_size, ) + self.input_shape)
+        S_prime = S_prime.reshape((batch_size, ) + self.input_shape)
+
+        X = np.concatenate([S, S_prime], axis = 0)
+        Y = model.predict(X)
+
+        if target is not None: # Use Double DQN logic:
+            actions = np.argmax(Y[batch_size:], axis = 1)
             Y_target = target.predict(X[batch_size:])
             Qsa = np.max(Y_target[actions], axis = 1).repeat(nb_actions)\
                                                      .reshape((batch_size, nb_actions))
-            delta = np.zeros((batch_size, nb_actions))
-            a = np.cast['int'](a)
-            delta[np.arange(batch_size), a] = 1
-            targets = ((1 - delta) * q_model[:batch_size]
-                      + delta * (r + gamma * (1 - game_over) * Qsa))
-            errors = np.abs(targets - np.max(q_model[:batch_size]))
 
-            return S, targets, errors
         else:
-            nb_actions = model.get_output_shape_at(0)[-1]
-            samples = np.array(random.sample(self.memory, batch_size))
-            input_dim = np.prod(self.input_shape)
-            S = samples[:, 0 : input_dim]
-            a = samples[:, input_dim]
-            r = samples[:, input_dim + 1]
-            S_prime = samples[:, input_dim + 2 : 2 * input_dim + 2]
-            game_over = samples[:, 2 * input_dim + 2]
-            r = r.repeat(nb_actions).reshape((batch_size, nb_actions))
-            game_over = game_over.repeat(nb_actions)\
-                                 .reshape((batch_size, nb_actions))
-            S = S.reshape((batch_size, ) + self.input_shape)
-            S_prime = S_prime.reshape((batch_size, ) + self.input_shape)
-            X = np.concatenate([S, S_prime], axis = 0)
-            Y = model.predict(X)
             Qsa = np.max(Y[batch_size:], axis = 1).repeat(nb_actions)\
                                                 .reshape((batch_size, nb_actions))
-            delta = np.zeros((batch_size, nb_actions))
-            a = np.cast['int'](a)
-            delta[np.arange(batch_size), a] = 1
-            targets = ((1 - delta) * Y[:batch_size]
-                      + delta * (r + gamma * (1 - game_over) * Qsa))
-            errors = np.abs(targets - np.max(Y[:batch_size]))
 
-        return S, targets, errors
+        # The targets here already take into account
+        delta = np.zeros((batch_size, nb_actions))
+        a = np.cast['int'](a)
+        delta[np.arange(batch_size), a] = 1
+        targets = ((1 - delta) * Y[:batch_size]
+                  + delta * (r + gamma * (1 - game_over) * Qsa))
 
-    @property
-    def memory_size(self):
-        return self._memory_size
+        if self.per:
+            errors = np.abs((targets - Y[:batch_size]).max(axis = 1))
+            self.update(tree_indices, errors)
 
-    @memory_size.setter
-    def memory_size(self, value):
-        if value > 0 and value < self._memory_size:
-            self.memory = self.memory[:value]
-
-        self._memory_size = value
+        return S, targets, IS_weights
 
     def reset_memory(self):
         """Set the memory as a blank list."""
-        self.memory = []
+        if self.per:
+            if self.memory_size <= 0:
+                self.memory_size = 150000
+
+            self.memory = SumTree(self.memory_size)
+            self.exp = 0
+        else:
+            self.memory = []
 
 
 class Agent:
@@ -144,17 +211,20 @@ class Agent:
     Attributes:
     memory: memory used in the model. Input memory or ExperienceReplay.
     model: the input model, Conv2D in Keras.
+    target: the target model, used to calculade the fixed Q-targets.
     nb_frames: ammount of frames for each sars.
     frames: the frames in each sars.
+    per: flag for PER usage.
     """
-    def __init__(self, model, target, memory = None, memory_size = 1000,
-                 nb_frames = 4, board_size = 10):
+    def __init__(self, model, target, memory = None, memory_size = 150000,
+                 nb_frames = 4, board_size = 10, per = False):
         """Initialize the agent with given attributes."""
         if memory:
             self.memory = memory
         else:
-            self.memory = ExperienceReplay(memory_size)
+            self.memory = ExperienceReplay(memory_size = memory_size, per = per)
 
+        self.per = per
         self.model = model
         self.target = target
         self.nb_frames = nb_frames
@@ -162,17 +232,9 @@ class Agent:
         self.frames = None
         self.target_updates = 0
 
-    @property
-    def memory_size(self):
-        return self.memory.memory_size
-
-    @memory_size.setter
-    def memory_size(self, value):
-        self.memory.memory_size = value
-
     def reset_memory(self):
         """Reset memory if necessary."""
-        self.exp_replay.reset_memory()
+        self.memory.reset_memory()
 
     def get_game_data(self, game, game_over):
         """Create a list with 4 frames and append/pop them each frame."""
@@ -241,31 +303,26 @@ class Agent:
                    game_over = True
 
                 S_prime = self.get_game_data(game, game_over)
-                transition = [S, a, r, S_prime, game_over]
-                self.memory.remember(*transition)
+                experience = [S, a, r, S_prime, game_over]
+                self.memory.remember(*experience)
                 S = S_prime
 
                 if epoch >= observe:
                     if self.target is not None:
-                        if epoch <= 500:
-                            batch = self.memory.get_batch(model = self.model,
-                                                          target = None,
-                                                          batch_size = batch_size,
-                                                          gamma = gamma)
+                        batch = self.memory.get_targets(model = self.model,
+                                                        target = None,
+                                                        batch_size = batch_size,
+                                                        gamma = gamma)
 
-                        if epoch > 500:
-                            batch = self.memory.get_batch(model = self.model,
-                                                          target = self.target,
-                                                          batch_size = batch_size,
-                                                          gamma = gamma)
                     else:
-                        batch = self.memory.get_batch(model = self.model,
-                                                      target = self.target,
-                                                      batch_size = batch_size,
-                                                      gamma = gamma)
+                        batch = self.memory.get_targets(model = self.model,
+                                                        target = self.target,
+                                                        batch_size = batch_size,
+                                                        gamma = gamma)
 
                 if batch:
-                    inputs, targets, errors = batch
+                    inputs, targets, IS_weights = batch
+
                     if inputs is not None and targets is not None:
                         loss += float(self.model.train_on_batch(inputs, targets))
 
@@ -274,6 +331,9 @@ class Agent:
 
             if epsilon > final_epsilon and epoch >= observe:
                 epsilon -= delta
+
+            if self.per and self.memory.per_beta < 1.0:
+                self.memory.per_beta += self.memory.per_beta_inc
 
             if self.target is not None:
                 if epoch % update_target_freq == 0:
@@ -318,14 +378,15 @@ class Agent:
                 if visual:
                     game.draw(color_list)
 
-                if current_size > previous_size:
-                    color_list = game.gradient([(42, 42, 42), (152, 152, 152)],
-                                               game.snake.length)
+                    if current_size > previous_size:
+                        color_list = game.gradient([(42, 42, 42), (152, 152, 152)],
+                                                   game.snake.length)
 
-                    previous_size = current_size
-                    if game.snake.check_collision()\
-                       or game.step > (50 * game.snake.length):
-                       game_over = True
+                        previous_size = current_size
+
+                if game.snake.check_collision()\
+                    or game.step > (50 * game.snake.length):
+                    game_over = True
 
                 S = self.get_game_data(game, game_over)
 
@@ -353,13 +414,13 @@ if __name__ == '__main__':
 
     if not arguments.status_visual:
         if not arguments.status_load:
-            if arguments.status_dueling:
+            if arguments.dueling:
                 model = CNN_DUELING(optimizer = RMSprop(), loss = clipped_error,
                                     stack = nb_frames, input_size = board_size,
                                     output_size = nb_actions)
 
                 target = None
-                if arguments.status_double:
+                if arguments.double:
                     target = CNN_DUELING(optimizer = RMSprop(),
                                          loss = clipped_error,
                                          stack = nb_frames,
@@ -372,7 +433,7 @@ if __name__ == '__main__':
                             output_size = nb_actions)
 
                 target = None
-                if arguments.status_double:
+                if arguments.double:
                     target = CNN1(optimizer = RMSprop(), loss = clipped_error,
                                   stack = nb_frames, input_size = board_size,
                                   output_size = nb_actions)
@@ -383,14 +444,16 @@ if __name__ == '__main__':
             game = Game(board_size = board_size,
                         local_state = arguments.local_state)
             agent = Agent(model = model, target = target, memory_size = -1,
-                          nb_frames = nb_frames, board_size = board_size)
+                          nb_frames = nb_frames, board_size = board_size,
+                          per = arguments.per)
             agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8,
                         update_target_freq = update_target_freq)
         else:
             game = Game(board_size = board_size,
                         local_state = arguments.local_state)
             agent = Agent(model = model, target = target, memory_size = -1,
-                          nb_frames = nb_frames, board_size = board_size)
+                          nb_frames = nb_frames, board_size = board_size,
+                          per = arguments.per)
 
             print("Loading file located in {}. We can play after that."
                     .format(arguments.args.load))
@@ -400,12 +463,12 @@ if __name__ == '__main__':
         agent.play(game, visual = False)
     else:
         if not arguments.status_load:
-            if arguments.status_dueling:
+            if arguments.dueling:
                 model = CNN_DUELING(optimizer = RMSprop(), loss = clipped_error,
                                     stack = nb_frames, input_size = board_size,
                                     output_size = nb_actions)
                 target = None
-                if arguments.status_double:
+                if arguments.double:
                     target = CNN_DUELING(optimizer = RMSprop(),
                                          loss = clipped_error,
                                          stack = nb_frames,
@@ -418,7 +481,7 @@ if __name__ == '__main__':
                             output_size = nb_actions)
 
                 target = None
-                if arguments.status_double:
+                if arguments.double:
                     target = CNN1(optimizer = RMSprop(), loss = clipped_error,
                                   stack = nb_frames, input_size = board_size,
                                   output_size = nb_actions)
@@ -429,14 +492,16 @@ if __name__ == '__main__':
             game = Game(board_size = board_size,
                         local_state = arguments.local_state)
             agent = Agent(model = model, target = target, memory_size = -1,
-                          nb_frames = nb_frames)
+                          nb_frames = nb_frames, board_size = board_size,
+                          per = arguments.per)
             agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8,
                         update_target_freq = update_target_freq)
         else:
             game = Game(board_size = board_size,
                         local_state = arguments.local_state)
             agent = Agent(model = model, target = target, memory_size = -1,
-                          nb_frames = nb_frames)
+                          nb_frames = nb_frames, board_size = board_size,
+                          per = arguments.per)
 
             print("Loading file located in {}. We can play after that."\
                   .format(arguments.args.load))
