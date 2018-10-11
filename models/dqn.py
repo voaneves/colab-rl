@@ -38,6 +38,7 @@ parentdir = path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
 from keras.optimizers import RMSprop, Nadam
+from keras.models import load_model
 from keras import backend as K
 K.set_image_dim_ordering('th')
 
@@ -109,7 +110,7 @@ class ExperienceReplay:
                                      s_prime.flatten(),
                                      1 * np.array(game_over).flatten()])
 
-        if self.per:
+        if self.per: # If using PER, insert in the max_priority.
             max_priority = self.memory.max_leaf()
 
             if max_priority == 0:
@@ -117,7 +118,7 @@ class ExperienceReplay:
 
             self.memory.insert(experience, max_priority)
             self.exp += 1
-        else:
+        else: # Else, just append the experience to the list.
             self.memory.append(experience)
 
             if self.memory_size > 0 and self.exp_size() > self.memory_size:
@@ -187,7 +188,7 @@ class ExperienceReplay:
         targets = ((1 - delta) * Y[:batch_size]
                   + delta * (r + gamma * (1 - game_over) * Qsa))
 
-        if self.per:
+        if self.per: # Update the Sum Tree with the absolute error.
             errors = np.abs((targets - Y[:batch_size]).max(axis = 1))
             self.update(tree_indices, errors)
 
@@ -256,16 +257,18 @@ class Agent:
         self.frames = None
 
     def update_target_model(self):
+        """Update the target model with the main model's weights."""
         self.target_updates += 1
         self.target.set_weights(self.model.get_weights())
 
-    def train(self, game, nb_epoch = 1000, batch_size = 50, gamma = 0.9,
-              epsilon = [1., .1], epsilon_rate = 0.5, reset_memory = False,
-              observe = 0, update_target_freq = 500):
+    def train(self, game, nb_epoch = 10000, batch_size = 64, gamma = 0.95,
+              epsilon = [1., .01], epsilon_rate = 0.5, observe = 0,
+              update_target_freq = 500, rounds = 1):
         """The main training function, loops the game, remember and choose best
         action given game state (frames)."""
         if type(epsilon)  in {tuple, list}:
-            delta =  ((epsilon[0] - epsilon[1]) / (nb_epoch * epsilon_rate))
+            delta =  ((epsilon[0] - epsilon[1])\
+                     / ((nb_epoch - observe) * epsilon_rate))
             final_epsilon = epsilon[1]
             epsilon = epsilon[0]
         else:
@@ -273,78 +276,72 @@ class Agent:
 
         nb_actions = self.model.get_output_shape_at(0)[-1]
         win_count = 0
+        for turn in range(rounds):
+            if rounds > 1:
+                self.reset_memory() # If more than one round, reset the memory
 
-        for epoch in range(nb_epoch):
-            loss = 0.
-            game.reset()
-            self.clear_frames()
+            for epoch in range(nb_epoch):
+                loss = 0.
+                game.reset()
+                self.clear_frames()
 
-            if reset_memory:
-                self.reset_memory()
+                game_over = False
+                S = self.get_game_data(game, game_over)
 
-            game_over = False
-            S = self.get_game_data(game, game_over)
+                while not game_over:
+                    game.food_pos = game.generate_food()
+                    rand = random.random()
 
-            while not game_over:
-                game.food_pos = game.generate_food()
-                rand = random.random()
-
-                if rand < epsilon or epoch < observe:
-                    a = int(5 * rand)
-                else:
-                    q = self.model.predict(S)
-                    a = int(np.argmax(q[0]))
-
-                game.play(a, "ROBOT")
-                r = game.get_reward()
-
-                if game.snake.check_collision()\
-                   or game.step > (50 * game.snake.length):
-                   game_over = True
-
-                S_prime = self.get_game_data(game, game_over)
-                experience = [S, a, r, S_prime, game_over]
-                self.memory.remember(*experience)
-                S = S_prime
-
-                if epoch >= observe:
-                    if self.target is not None:
-                        batch = self.memory.get_targets(model = self.model,
-                                                        target = None,
-                                                        batch_size = batch_size,
-                                                        gamma = gamma)
-
+                    if rand < epsilon or epoch < observe:
+                        a = int(5 * rand) # Random action as often as epsilon.
                     else:
+                        q = self.model.predict(S)
+                        a = int(np.argmax(q[0]))
+
+                    game.play(a, "ROBOT")
+                    r = game.get_reward()
+
+                    if game.snake.check_collision()\
+                       or game.step > (50 * game.snake.length):
+                       game_over = True # Cheeck collision before S'
+
+                    S_prime = self.get_game_data(game, game_over)
+                    experience = [S, a, r, S_prime, game_over]
+                    self.memory.remember(*experience) # Add to the memory
+                    S = S_prime # Advance to the next state (stack of S)
+
+                    if epoch >= observe: # Get the batchs and train
                         batch = self.memory.get_targets(model = self.model,
                                                         target = self.target,
                                                         batch_size = batch_size,
                                                         gamma = gamma)
 
-                if batch:
-                    inputs, targets, IS_weights = batch
+                        if batch:
+                            inputs, targets, IS_weights = batch
 
-                    if inputs is not None and targets is not None:
-                        loss += float(self.model.train_on_batch(inputs, targets))
+                            if inputs is not None and targets is not None:
+                                loss += float(self.model.train_on_batch(inputs,
+                                                                        targets))
 
-            if game.is_won():
-                win_count += 1
+                if game.is_won():
+                    win_count += 1 # Counter for metric purposes
 
-            if epsilon > final_epsilon and epoch >= observe:
-                epsilon -= delta
+                if epsilon > final_epsilon and epoch >= observe:
+                    epsilon -= delta # Advance epsilon
 
-            if self.per and self.memory.per_beta < 1.0:
-                self.memory.per_beta += self.memory.per_beta_inc
+                if self.per and self.memory.per_beta < 1.0: # Advance beta
+                    self.memory.per_beta += self.memory.per_beta_inc
 
-            if self.target is not None:
-                if epoch % update_target_freq == 0:
-                    self.update_target_model()
+                if self.target is not None: # Update the target model
+                    if epoch % update_target_freq == 0:
+                        self.update_target_model()
 
-            print("\tEpoch: {:03d}/{:03d} | Loss: {:.4f} | Epsilon: {:.2f}"\
-                                                     .format(epoch + 1,
-                                                             nb_epoch, loss,
-                                                             epsilon)
-                  + " | Win count: {} | Size: {:03d}".format(win_count,
-                                                             game.snake.length))
+                print("\tEpoch: {:03d}/{:03d} | Loss: {:.4f} | Epsilon: {:.2f}"\
+                                                         .format(epoch + 1,
+                                                                 nb_epoch, loss,
+                                                                 epsilon)
+                      + " | Win count: {} | Size: {:03d}".format(win_count,
+                                                                 game.snake.length))
 
     def play(self, game, nb_epoch = 100, epsilon = 0., visual = False):
         """Play the game with the trained agent. Can use the visual tag to draw
@@ -358,7 +355,6 @@ class Agent:
             self.clear_frames()
             game_over = False
             S = self.get_game_data(game, game_over)
-            current_size = 3 # Initial size of the snake
 
             if visual:
                 game.create_window()
@@ -369,10 +365,16 @@ class Agent:
                                                previous_size)
 
             while not game_over:
-                q = self.model.predict(S)
-                action = int(np.argmax(q[0]))
+                if epsilon != 0:
+                    rand = random.random()
 
-                game.play(action, "ROBOT")
+                    if rand < epsilon:
+                        a = int(5 * rand) # Random action as often as epsilon.
+                else:
+                    q = self.model.predict(S)
+                    a = int(np.argmax(q[0]))
+
+                game.play(a, "ROBOT")
                 current_size = game.snake.length # Update the body size
 
                 if visual:
@@ -385,7 +387,7 @@ class Agent:
                         previous_size = current_size
 
                 if game.snake.check_collision()\
-                    or game.step > (50 * game.snake.length):
+                    or game.step > (50 * current_size):
                     game_over = True
 
                 S = self.get_game_data(game, game_over)
