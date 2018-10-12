@@ -293,7 +293,7 @@ class Game:
         if self.game_over:
             return -1
         elif self.scored:
-            return self.snake.length
+            return (self.snake.length - 3)
 
         return 0
 
