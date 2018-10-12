@@ -108,3 +108,19 @@ def CNN_DUELING(optimizer, loss, stack, input_size, output_size):
     model.compile(optimizer = optimizer, loss = loss)
 
     return model
+
+def CNN_TEST_LOCAL(optimizer, frames_shape, local_shape, loss, output_size):
+    input_frames = Input(shape = frames_shape)
+    input_local = Input(shape = local_shape)
+
+    merge_inputs = concatenate([input_frames, input_local])
+
+    net = Conv2D(16, (3, 3), activation = 'relu')(merge_inputs)
+    net = Conv2D(32, (3, 3), activation = 'relu')(net)
+    net = Flatten()(net)
+    final = Dense(256, activation = 'relu')(net)
+    final = Dense(output_size)(final)
+    model = Model(inputs = [input_frames, input_local], outputs = final)
+    model.compile(optimizer = optimizer, loss = loss)
+
+    return model
