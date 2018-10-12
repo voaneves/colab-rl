@@ -47,6 +47,7 @@ from utilities.networks import CNN1, CNN2, CNN3, CNN_DUELING
 from utilities.clipped_error import clipped_error
 from utilities.argument_handler import HandleArguments
 from utilities.sum_tree import SumTree
+from utilities.policy import *
 
 __author__ = "Victor Neves"
 __license__ = "MIT"
@@ -79,7 +80,7 @@ class ExperienceReplay:
             self.per_epsilon = epsilon
             self.per_alpha = alpha
             self.per_beta = beta
-            self.per_beta_inc = (1.0 - self.per_beta) / (nb_epoch * decay)
+            self.schedule = LinearSchedule(nb_epoch * decay, 1.0, beta)
 
     def exp_size(self):
         """Returns how much memory is stored."""
@@ -189,7 +190,7 @@ class ExperienceReplay:
                   + delta * (r + gamma * (1 - game_over) * Qsa))
 
         if self.per: # Update the Sum Tree with the absolute error.
-            errors = np.abs((targets - Y[:batch_size]).max(axis = 1))
+            errors = np.abs((targets - Y[:batch_size]).max(axis = 1)).clip(max = 1.)
             self.update(tree_indices, errors)
 
         return S, targets, IS_weights
@@ -262,22 +263,20 @@ class Agent:
         self.target.set_weights(self.model.get_weights())
 
     def train(self, game, nb_epoch = 10000, batch_size = 64, gamma = 0.95,
-              epsilon = [1., .01], epsilon_rate = 0.5, observe = 0,
-              update_target_freq = 500, rounds = 1):
+              eps = [1., .01], temp = [1., 0.01], learning_rate = 0.5,
+              observe = 0, update_target_freq = 500, rounds = 1,
+              policy = "EpsGreedyQPolicy"):
         """The main training function, loops the game, remember and choose best
         action given game state (frames)."""
-        if type(epsilon)  in {tuple, list}:
-            delta =  ((epsilon[0] - epsilon[1])\
-                     / ((nb_epoch - observe) * epsilon_rate))
-            final_epsilon = epsilon[1]
-            epsilon = epsilon[0]
+        if policy == "BoltzmannQPolicy":
+            q_policy = BoltzmannQPolicy(temp[0], temp[1], nb_epoch * learning_rate)
         else:
-            final_epsilon = epsilon
+            q_policy = EpsGreedyQPolicy(eps[0], eps[1], nb_epoch * learning_rate)
 
         nb_actions = self.model.get_output_shape_at(0)[-1]
         win_count = 0
         for turn in range(rounds):
-            if rounds > 1:
+            if turn > 0:
                 self.reset_memory() # If more than one round, reset the memory
 
             for epoch in range(nb_epoch):
@@ -290,15 +289,9 @@ class Agent:
 
                 while not game_over:
                     game.food_pos = game.generate_food()
-                    rand = random.random()
+                    action, value = q_policy.select_action(self.model, S, epoch, nb_actions)
 
-                    if rand < epsilon or epoch < observe:
-                        a = int(5 * rand) # Random action as often as epsilon.
-                    else:
-                        q = self.model.predict(S)
-                        a = int(np.argmax(q[0]))
-
-                    game.play(a, "ROBOT")
+                    game.play(action, "ROBOT")
                     r = game.get_reward()
 
                     if game.snake.check_collision()\
@@ -306,7 +299,7 @@ class Agent:
                        game_over = True # Cheeck collision before S'
 
                     S_prime = self.get_game_data(game, game_over)
-                    experience = [S, a, r, S_prime, game_over]
+                    experience = [S, action, r, S_prime, game_over]
                     self.memory.remember(*experience) # Add to the memory
                     S = S_prime # Advance to the next state (stack of S)
 
@@ -326,29 +319,41 @@ class Agent:
                 if game.is_won():
                     win_count += 1 # Counter for metric purposes
 
-                if epsilon > final_epsilon and epoch >= observe:
-                    epsilon -= delta # Advance epsilon
-
-                if self.per and self.memory.per_beta < 1.0: # Advance beta
-                    self.memory.per_beta += self.memory.per_beta_inc
+                if self.per: # Advance beta
+                    self.memory.per_beta = self.memory.schedule.value(epoch)
 
                 if self.target is not None: # Update the target model
                     if epoch % update_target_freq == 0:
                         self.update_target_model()
 
-                print("\tEpoch: {:03d}/{:03d} | Loss: {:.4f} | Epsilon: {:.2f}"\
-                                                         .format(epoch + 1,
-                                                                 nb_epoch, loss,
-                                                                 epsilon)
-                      + " | Win count: {} | Size: {:03d}".format(win_count,
-                                                                 game.snake.length))
+                if policy == "BoltzmannQPolicy":
+                    print("\tEpoch: {:03d}/{:03d} | Loss: {:.4f} | Boltzmann Temperature: {:.2f}"\
+                                                             .format(epoch + 1,
+                                                                     nb_epoch, loss,
+                                                                     value)
+                          + " | Win count: {} | Size: {:03d}".format(win_count,
+                                                                     game.snake.length))
+                else:
+                    print("\tEpoch: {:03d}/{:03d} | Loss: {:.4f} | Epsilon: {:.2f}"\
+                                                             .format(epoch + 1,
+                                                                     nb_epoch, loss,
+                                                                     value)
+                          + " | Win count: {} | Size: {:03d}".format(win_count,
+                                                                     game.snake.length))
 
-    def play(self, game, nb_epoch = 100, epsilon = 0., visual = False):
+    def play(self, game, nb_epoch = 100, eps = 0.01, temp = 0.01,
+             visual = False, policy = "GreedyQPolicy"):
         """Play the game with the trained agent. Can use the visual tag to draw
             in pygame."""
         win_count = 0
         result_size = []
         result_step = []
+        if policy == "BoltzmannQPolicy":
+            q_policy = BoltzmannQPolicy(temp, temp, 0)
+        elif policy == "EpsGreedyQPolicy":
+            q_policy = EpsGreedyQPolicy(eps, eps, 0)
+        else:
+            q_policy = GreedyQPolicy()
 
         for epoch in range(nb_epoch):
             game.reset()
@@ -365,16 +370,8 @@ class Agent:
                                                previous_size)
 
             while not game_over:
-                if epsilon != 0:
-                    rand = random.random()
-
-                    if rand < epsilon:
-                        a = int(5 * rand) # Random action as often as epsilon.
-                else:
-                    q = self.model.predict(S)
-                    a = int(np.argmax(q[0]))
-
-                game.play(a, "ROBOT")
+                action, value = q_policy.select_action(self.model, S, epoch, nb_actions)
+                game.play(action, "ROBOT")
                 current_size = game.snake.length # Update the body size
 
                 if visual:
