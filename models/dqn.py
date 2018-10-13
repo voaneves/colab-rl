@@ -145,7 +145,9 @@ class ExperienceReplay:
             return np.array(batch), IS_weights, tree_indices
 
         else:
-            return np.array(random.sample(self.memory, batch_size)), None, None
+            IS_weights = np.ones((batch_size, ))
+            batch = random.sample(self.memory, batch_size)
+            return np.array(batch), IS_weights, None
 
     def get_targets(self, target, model, batch_size, gamma = 0.9):
         """Function to sample, set batch function and use it for targets."""
@@ -314,7 +316,8 @@ class Agent:
 
                             if inputs is not None and targets is not None:
                                 loss += float(self.model.train_on_batch(inputs,
-                                                                        targets))
+                                                                        targets,
+                                                                        IS_weights))
 
                 if game.is_won():
                     win_count += 1 # Counter for metric purposes
