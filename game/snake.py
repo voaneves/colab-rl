@@ -20,7 +20,8 @@ __maintainer__ = "Victor Neves"
 __email__ = "victorneves478@gmail.com"
 __status__ = "Production"
 
-actions = {0:'LEFT', 1:'RIGHT', 2:'UP', 3:'DOWN', 4:'idle'}
+actions = {0: 'LEFT', 1: 'RIGHT', 2: 'UP', 3: 'DOWN', 4: 'idle'}
+point_type = {'EMPTY': 0, 'FOOD': 1, 'BODY': 2, 'HEAD': 3, 'DANGEROUS': 4}
 forbidden_moves = [(0, 1), (1, 0), (2, 3), (3, 2)]
 
 class GlobalVariables:
@@ -244,14 +245,14 @@ class Game:
         """Evaluate the safety of the head's possible next movements."""
         if (body[0][0] + 1) > (var.BOARD_SIZE - 1)\
             or ([body[0][0] + 1, body[0][1]]) in body[1:]:
-            canvas[var.BOARD_SIZE - 1, 0] = 1
+            canvas[var.BOARD_SIZE - 1, 0] = point_type['DANGEROUS']
         if (body[0][0] - 1) < 0 or ([body[0][0] - 1, body[0][1]]) in body[1:]:
-            canvas[var.BOARD_SIZE - 1, 1] = 1
+            canvas[var.BOARD_SIZE - 1, 1] = point_type['DANGEROUS']
         if (body[0][1] - 1) < 0 or ([body[0][0], body[0][1] - 1]) in body[1:]:
-            canvas[var.BOARD_SIZE - 1, 2] = 1
+            canvas[var.BOARD_SIZE - 1, 2] = point_type['DANGEROUS']
         if (body[0][1] + 1) > (var.BOARD_SIZE - 1)\
             or ([body[0][0], body[0][1] + 1]) in body[1:]:
-            canvas[var.BOARD_SIZE - 1, 3] = 1
+            canvas[var.BOARD_SIZE - 1, 3] = point_type['DANGEROUS']
 
         return canvas
 
@@ -260,13 +261,15 @@ class Game:
         body = self.snake.return_body()
         canvas = np.zeros((var.BOARD_SIZE, var.BOARD_SIZE))
 
+        for part in body:
+            canvas[part[0], part[1]] = point_type['BODY']
+
+        canvas[body[0][0], body[0][1]] = point_type['HEAD']
+
         if self.local_state:
             canvas = self.eval_local_safety(canvas, body)
 
-        for part in body:
-            canvas[part[0], part[1]] = 1.
-
-        canvas[self.food_pos[0], self.food_pos[1]] = .5
+        canvas[self.food_pos[0], self.food_pos[1]] = point_type['FOOD']
 
         return canvas
 
@@ -293,7 +296,7 @@ class Game:
         if self.game_over:
             return -1
         elif self.scored:
-            return (self.snake.length - 3)
+            return self.snake.length
 
         return 0
 
