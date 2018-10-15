@@ -352,9 +352,9 @@ class Agent:
         result_size = []
         result_step = []
         if policy == "BoltzmannQPolicy":
-            q_policy = BoltzmannQPolicy(temp, temp, 0)
+            q_policy = BoltzmannQPolicy(temp, temp, nb_epoch)
         elif policy == "EpsGreedyQPolicy":
-            q_policy = EpsGreedyQPolicy(eps, eps, 0)
+            q_policy = EpsGreedyQPolicy(eps, eps, nb_epoch)
         else:
             q_policy = GreedyQPolicy()
 
