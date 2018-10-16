@@ -264,12 +264,47 @@ class Agent:
         self.target_updates += 1
         self.target.set_weights(self.model.get_weights())
 
+    def print_metrics(self, epoch, nb_epoch, history_size, history_loss,
+                      history_step, history_reward, policy, value, win_count):
+        """"""
+        # Print epoch info:
+        print("Epoch: {:03d}/{:03d}".format(epoch + 1, nb_epoch))
+
+        # Print training performance:
+        if epoch > 100:
+            print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
+                  + '\tTotal loss: {:.4f} | Loss per step: {:.4f} | Mean loss per step - 100 episodes: {:.4f}'.format(history_loss[-1], history_loss[-1]/history_step[-1], sum(history_loss[-100:]) / len(history_loss[-100:])))
+            print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m'
+                  + "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f} | Mean size - 100 episodes: {:.0f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1], sum(history_step[-100:]) / len(history_step[-100:])))
+        else:
+            print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
+                  + "\tTotal loss: {:.4f} | Loss per step: {:.4f}".format(history_loss[-1], history_loss[-1]/history_step[-1]))
+            print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m' +
+                  "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1]))
+
+        # Print policy metrics
+        if policy == "BoltzmannQPolicy":
+            print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
+                  + "\tBoltzmann Temperature: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}".format(value, history_reward[-1], win_count, win_count/(epoch + 1)))
+        if policy == "BoltzmannGumbelQPolicy":
+            print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
+                  + "\tNumber of actions: {:.0f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}".format(value, history_reward[-1], win_count, win_count/(epoch + 1)))
+        else:
+            print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
+                  + "\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}".format(value, history_reward[-1], win_count, win_count/(epoch + 1)))
+
     def train(self, game, nb_epoch = 10000, batch_size = 64, gamma = 0.95,
               eps = [1., .01], temp = [1., 0.01], learning_rate = 0.5,
               observe = 0, update_target_freq = 500, rounds = 1,
               policy = "EpsGreedyQPolicy"):
         """The main training function, loops the game, remember and choose best
         action given game state (frames)."""
+
+        history_size = []
+        history_step = []
+        history_loss = []
+        history_reward = []
+
         if policy == "BoltzmannQPolicy":
             q_policy = BoltzmannQPolicy(temp[0], temp[1], nb_epoch * learning_rate)
         else:
@@ -283,6 +318,7 @@ class Agent:
 
             for epoch in range(nb_epoch):
                 loss = 0.
+                total_reward = 0.
                 game.reset()
                 self.clear_frames()
 
@@ -295,6 +331,7 @@ class Agent:
 
                     game.play(action, "ROBOT")
                     r = game.get_reward()
+                    total_reward += r
 
                     if game.snake.check_collision()\
                        or game.step > (50 * game.snake.length):
@@ -329,20 +366,14 @@ class Agent:
                     if epoch % update_target_freq == 0:
                         self.update_target_model()
 
-                if policy == "BoltzmannQPolicy":
-                    print("\tEpoch: {:03d}/{:03d} | Loss: {:.4f} | Boltzmann Temperature: {:.2f}"\
-                                                             .format(epoch + 1,
-                                                                     nb_epoch, loss,
-                                                                     value)
-                          + " | Win count: {} | Size: {:03d}".format(win_count,
-                                                                     game.snake.length))
-                else:
-                    print("\tEpoch: {:03d}/{:03d} | Loss: {:.4f} | Epsilon: {:.2f}"\
-                                                             .format(epoch + 1,
-                                                                     nb_epoch, loss,
-                                                                     value)
-                          + " | Win count: {} | Size: {:03d}".format(win_count,
-                                                                     game.snake.length))
+                history_size.append(game.snake.length)
+                history_step.append(game.step)
+                history_loss.append(loss)
+                history_reward.append(total_reward)
+
+                self.print_metrics(epoch, nb_epoch, history_size, history_loss,
+                                   history_step, history_reward, policy, value,
+                                   win_count)
 
     def play(self, game, nb_epoch = 100, eps = 0.01, temp = 0.01,
              visual = False, policy = "GreedyQPolicy"):
