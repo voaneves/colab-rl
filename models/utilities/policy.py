@@ -132,6 +132,7 @@ class BoltzmannQPolicy:
         config['clip'] = self.clip
         return config
 
+
 class BoltzmannGumbelQPolicy:
     """Implements Boltzmann-Gumbel exploration (BGE) adapted for Q learning
     based on the paper Boltzmann Exploration Done Right
@@ -145,7 +146,7 @@ class BoltzmannGumbelQPolicy:
     on K actions with parameter C by using the BoltzmannQPolicy and setting
     tau = C/sqrt(N/K)."""
 
-    def __init__(self, C = 1.):
+    def __init__(self, C = 1.0):
         super(BoltzmannGumbelQPolicy, self).__init__()
         self.C = C
         self.action_counts = None
@@ -182,4 +183,5 @@ class BoltzmannGumbelQPolicy:
             Dict of config
         """
         config = super(BoltzmannGumbelQPolicy, self).get_config()
+	    config['C'] = self.C
         return config
