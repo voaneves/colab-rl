@@ -273,9 +273,9 @@ class Agent:
         # Print training performance:
         if epoch > 100:
             print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
-                  + '\tTotal loss: {:.4f} | Loss per step: {:.4f} | Mean loss per step - 100 episodes: {:.4f}'.format(history_loss[-1], history_loss[-1]/history_step[-1], sum(history_loss[-100:]) / len(history_loss[-100:])))
+                  + '\tTotal loss: {:.4f} | Loss per step: {:.4f} | Mean loss - 100 episodes: {:.4f}'.format(history_loss[-1], history_loss[-1]/history_step[-1], sum(history_loss[-100:]) / 100))
             print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m'
-                  + "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f} | Mean size - 100 episodes: {:.0f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1], sum(history_step[-100:]) / len(history_step[-100:])))
+                  + "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f} | Mean size - 100 episodes: {:.1f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1], sum(history_step[-100:]) / 100))
         else:
             print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
                   + "\tTotal loss: {:.4f} | Loss per step: {:.4f}".format(history_loss[-1], history_loss[-1]/history_step[-1]))
@@ -285,13 +285,13 @@ class Agent:
         # Print policy metrics
         if policy == "BoltzmannQPolicy":
             print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                  + "\tBoltzmann Temperature: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}".format(value, history_reward[-1], win_count, win_count/(epoch + 1)))
+                  + "\tBoltzmann Temperature: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
         if policy == "BoltzmannGumbelQPolicy":
             print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                  + "\tNumber of actions: {:.0f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}".format(value, history_reward[-1], win_count, win_count/(epoch + 1)))
+                  + "\tNumber of actions: {:.0f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], 100 * win_count, win_count/(epoch + 1)))
         else:
             print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                  + "\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}".format(value, history_reward[-1], win_count, win_count/(epoch + 1)))
+                  + "\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
 
     def train(self, game, nb_epoch = 10000, batch_size = 64, gamma = 0.95,
               eps = [1., .01], temp = [1., 0.01], learning_rate = 0.5,
@@ -307,6 +307,8 @@ class Agent:
 
         if policy == "BoltzmannQPolicy":
             q_policy = BoltzmannQPolicy(temp[0], temp[1], nb_epoch * learning_rate)
+        if policy == "BoltzmannGumbelQPolicy":
+            q_policy = BoltzmannGumbelQPolicy()
         else:
             q_policy = EpsGreedyQPolicy(eps[0], eps[1], nb_epoch * learning_rate)
 
@@ -375,7 +377,7 @@ class Agent:
                                    history_step, history_reward, policy, value,
                                    win_count)
 
-    def play(self, game, nb_epoch = 100, eps = 0.01, temp = 0.01,
+    def play(self, game, nb_epoch = 1000, eps = 0.01, temp = 0.01,
              visual = False, policy = "GreedyQPolicy"):
         """Play the game with the trained agent. Can use the visual tag to draw
             in pygame."""
