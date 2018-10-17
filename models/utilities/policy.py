@@ -47,7 +47,7 @@ class GreedyQPolicy:
         return action, 0
 
     def get_config(self):
-        """Return configurations of EpsGreedyPolicy
+        """Return configurations of GreedyQPolicy
         # Returns
             Dict of config
         """
@@ -86,7 +86,7 @@ class EpsGreedyQPolicy:
         return action, self.eps
 
     def get_config(self):
-        """Return configurations of EpsGreedyPolicy
+        """Return configurations of EpsGreedyQPolicy
         # Returns
             Dict of config
         """
@@ -123,7 +123,7 @@ class BoltzmannQPolicy:
         return action, self.temp
 
     def get_config(self):
-        """Return configurations of EpsGreedyPolicy
+        """Return configurations of BoltzmannQPolicy
         # Returns
             Dict of config
         """
@@ -178,10 +178,10 @@ class BoltzmannGumbelQPolicy:
         return action, np.sum(self.action_counts)
 
     def get_config(self):
-        """Return configurations of EpsGreedyPolicy
+        """Return configurations of BoltzmannGumbelQPolicy
         # Returns
             Dict of config
         """
         config = super(BoltzmannGumbelQPolicy, self).get_config()
-	    config['C'] = self.C
+        config['C'] = self.C
         return config
