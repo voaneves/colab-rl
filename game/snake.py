@@ -20,9 +20,13 @@ __maintainer__ = "Victor Neves"
 __email__ = "victorneves478@gmail.com"
 __status__ = "Production"
 
-actions = {0: 'LEFT', 1: 'RIGHT', 2: 'UP', 3: 'DOWN', 4: 'idle'}
-point_type = {'EMPTY': 0, 'FOOD': 1, 'BODY': 2, 'HEAD': 3, 'DANGEROUS': 4}
+# Actions and forbidden moves
+relative_actions = {'LEFT': 0, 'FORWARD': 1, 'RIGHT': 2}
+actions = {'LEFT': 0, 'RIGHT': 1, 'UP': 2, 'DOWN': 3, 'IDLE': 4}
 forbidden_moves = [(0, 1), (1, 0), (2, 3), (3, 2)]
+
+# Types of point in the board
+point_type = {'EMPTY': 0, 'FOOD': 1, 'BODY': 2, 'HEAD': 3, 'DANGEROUS': 4}
 
 class GlobalVariables:
     """Global variables to be used while drawing and moving the snake game.
@@ -72,18 +76,19 @@ class Snake:
     def move(self, action, food_pos):
         """According to orientation, move 1 block. If the head is not positioned
         on food, pop a body part. Else (food), return without popping."""
-        if action == 4 or (action, self.previous_action) in forbidden_moves:
+        if action == actions['IDLE']\
+            or (action, self.previous_action) in forbidden_moves:
             action = self.previous_action
         else:
             self.previous_action = action
 
-        if action == 0:
+        if action == actions['LEFT']:
             self.head[0] -= 1
-        elif action == 1:
+        elif action == actions['RIGHT']:
             self.head[0] += 1
-        elif action == 2:
+        elif action == actions['UP']:
             self.head[1] -= 1
-        elif action == 3:
+        elif action == actions['DOWN']:
             self.head[1] += 1
 
         self.body.insert(0, list(self.head))
@@ -167,10 +172,15 @@ class Game:
         food_pos: Position of the food on the board.
         game_over: Flag for game_over.
     """
-    def __init__(self, board_size = 30, local_state = False):
+    def __init__(self, board_size = 30, local_state = False, relative_pos = True):
         """Initialize window, fps and score."""
         var.BOARD_SIZE = board_size
         self.local_state = local_state
+        self.relative_pos = relative_pos
+        if self.relative_pos:
+            self.nb_actions = 4
+        else:
+            self.nb_actions = 5
         self.reset()
 
     def reset(self):
@@ -228,16 +238,16 @@ class Game:
             self.over()
         elif keys[pygame.K_LEFT]:
             logger.info('ACTION: KEY PRESSED: LEFT')
-            return 0
+            return actions['LEFT']
         elif keys[pygame.K_RIGHT]:
             logger.info('ACTION: KEY PRESSED: RIGHT')
-            return 1
+            return actions['RIGHT']
         elif keys[pygame.K_UP]:
             logger.info('ACTION: KEY PRESSED: UP')
-            return 2
+            return actions['UP']
         elif keys[pygame.K_DOWN]:
             logger.info('ACTION: KEY PRESSED: DOWN')
-            return 3
+            return actions['DOWN']
         else:
             return previous_action
 
@@ -273,23 +283,49 @@ class Game:
 
         return canvas
 
+    def relative_to_absolute(self, action):
+        if action == relative_actions['FORWARD']:
+            action = self.snake.previous_action
+        elif action == relative_actions['LEFT']:
+            if self.snake.previous_action == actions['LEFT']:
+                action = actions['DOWN']
+            elif self.snake.previous_action == actions['RIGHT']:
+                action = actions['UP']
+            elif self.snake.previous_action == actions['UP']:
+                action = actions['LEFT']
+            else:
+                action = actions['RIGHT']
+        else:
+            if self.snake.previous_action == actions['LEFT']:
+                action = actions['UP']
+            elif self.snake.previous_action == actions['RIGHT']:
+                action = actions['DOWN']
+            elif self.snake.previous_action == actions['UP']:
+                action = actions['RIGHT']
+            else:
+                action = actions['LEFT']
+
+        return action
+
     def play(self, action, player):
         """Move the snake to the direction, eat and check collision."""
-        assert action in range(5), "Invalid action."
+        assert action in range(self.nb_actions), "Invalid action."
 
         self.scored = False
         self.step += 1
         self.food_pos = self.generate_food()
 
+        if self.relative_pos:
+            action = self.relative_to_absolute(action)
+
         if self.snake.move(action, self.food_pos):
             self.scored = True
             self.food_generator.set_food_on_screen(False)
 
-        if self.snake.check_collision():
+        if player == "HUMAN" and self.snake.check_collision():
+            self.over()
+        elif self.snake.check_collision() or self.step > 50 * self.snake.length:
             self.game_over = True
-
-            if player == "HUMAN":
-                self.over()
 
     def get_reward(self):
         """Return the current score. Can be used as the reward function."""
