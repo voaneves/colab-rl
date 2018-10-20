@@ -130,7 +130,7 @@ class ExperienceReplay:
         if self.per:
             batch = [None] * batch_size
             IS_weights = np.zeros((batch_size, ))
-            tree_indices = np.zeros((batch_size, ), dtype = np.int32)
+            tree_indices = [0] * batch_size
 
             memory_sum = self.memory.sum()
             len_seg = memory_sum / batch_size
@@ -240,9 +240,9 @@ class Agent:
         """Reset memory if necessary."""
         self.memory.reset_memory()
 
-    def get_game_data(self, game, game_over):
+    def get_game_data(self, game):
         """Create a list with 4 frames and append/pop them each frame."""
-        if game_over:
+        if game.game_over:
             frame = np.zeros((self.board_size, self.board_size))
         else:
             frame = game.state()
@@ -265,38 +265,44 @@ class Agent:
         self.target.set_weights(self.model.get_weights())
 
     def print_metrics(self, epoch, nb_epoch, history_size, history_loss,
-                      history_step, history_reward, policy, value, win_count):
+                      history_step, history_reward, policy, value, win_count,
+                      verbose = 1):
         """"""
-        # Print epoch info:
-        print("Epoch: {:03d}/{:03d}".format(epoch + 1, nb_epoch))
-
-        # Print training performance:
-        if epoch > 100:
-            print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
-                  + '\tTotal loss: {:.4f} | Loss per step: {:.4f} | Mean loss - 100 episodes: {:.4f}'.format(history_loss[-1], history_loss[-1]/history_step[-1], sum(history_loss[-100:]) / 100))
-            print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m'
-                  + "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f} | Mean size - 100 episodes: {:.1f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1], sum(history_step[-100:]) / 100))
+        if verbose == 0:
+            pass
+        elif verbose == 1:
+            print("Epoch: {:03d}/{:03d} | Size: {:03d} | Ammount of steps: {:03d} | Wins: {:d} | Win percentage: {:.1f}%".format(epoch + 1, nb_epoch, history_size[-1], history_step[-1], win_count, 100 * win_count/(epoch + 1)))
         else:
-            print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
-                  + "\tTotal loss: {:.4f} | Loss per step: {:.4f}".format(history_loss[-1], history_loss[-1]/history_step[-1]))
-            print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m' +
-                  "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1]))
+            # Print epoch info:
+            print("Epoch: {:03d}/{:03d}".format(epoch + 1, nb_epoch))
 
-        # Print policy metrics
-        if policy == "BoltzmannQPolicy":
-            print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                  + "\tBoltzmann Temperature: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
-        if policy == "BoltzmannGumbelQPolicy":
-            print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                  + "\tNumber of actions: {:.0f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], 100 * win_count, win_count/(epoch + 1)))
-        else:
-            print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                  + "\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
+            # Print training performance:
+            if epoch > 100:
+                print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
+                      + '\tTotal loss: {:.4f} | Loss per step: {:.4f} | Mean loss - 100 episodes: {:.4f}'.format(history_loss[-1], history_loss[-1]/history_step[-1], sum(history_loss[-100:]) / 100))
+                print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m'
+                      + "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f} | Mean size - 100 episodes: {:.1f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1], sum(history_step[-100:]) / 100))
+            else:
+                print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
+                      + "\tTotal loss: {:.4f} | Loss per step: {:.4f}".format(history_loss[-1], history_loss[-1]/history_step[-1]))
+                print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m' +
+                      "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1]))
+
+            # Print policy metrics
+            if policy == "BoltzmannQPolicy":
+                print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
+                      + "\tBoltzmann Temperature: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
+            if policy == "BoltzmannGumbelQPolicy":
+                print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
+                      + "\tNumber of actions: {:.0f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
+            else:
+                print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
+                      + "\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
 
     def train(self, game, nb_epoch = 10000, batch_size = 64, gamma = 0.95,
               eps = [1., .01], temp = [1., 0.01], learning_rate = 0.5,
               observe = 0, update_target_freq = 500, rounds = 1,
-              policy = "EpsGreedyQPolicy"):
+              policy = "EpsGreedyQPolicy", verbose = 1):
         """The main training function, loops the game, remember and choose best
         action given game state (frames)."""
 
@@ -324,10 +330,9 @@ class Agent:
                 game.reset()
                 self.clear_frames()
 
-                game_over = False
-                S = self.get_game_data(game, game_over)
+                S = self.get_game_data(game)
 
-                while not game_over:
+                while not game.game_over:
                     game.food_pos = game.generate_food()
                     action, value = q_policy.select_action(self.model, S, epoch, nb_actions)
 
@@ -335,12 +340,8 @@ class Agent:
                     r = game.get_reward()
                     total_reward += r
 
-                    if game.snake.check_collision()\
-                       or game.step > (50 * game.snake.length):
-                       game_over = True # Cheeck collision before S'
-
-                    S_prime = self.get_game_data(game, game_over)
-                    experience = [S, action, r, S_prime, game_over]
+                    S_prime = self.get_game_data(game)
+                    experience = [S, action, r, S_prime, game.game_over]
                     self.memory.remember(*experience) # Add to the memory
                     S = S_prime # Advance to the next state (stack of S)
 
@@ -375,7 +376,7 @@ class Agent:
 
                 self.print_metrics(epoch, nb_epoch, history_size, history_loss,
                                    history_step, history_reward, policy, value,
-                                   win_count)
+                                   win_count, verbose)
 
     def play(self, game, nb_epoch = 1000, eps = 0.01, temp = 0.01,
              visual = False, policy = "GreedyQPolicy"):
@@ -394,8 +395,7 @@ class Agent:
         for epoch in range(nb_epoch):
             game.reset()
             self.clear_frames()
-            game_over = False
-            S = self.get_game_data(game, game_over)
+            S = self.get_game_data(game)
 
             if visual:
                 game.create_window()
@@ -405,7 +405,7 @@ class Agent:
                 color_list = game.gradient([(42, 42, 42), (152, 152, 152)],\
                                                previous_size)
 
-            while not game_over:
+            while not game.game_over:
                 action, value = q_policy.select_action(self.model, S, epoch, nb_actions)
                 game.play(action, "ROBOT")
                 current_size = game.snake.length # Update the body size
@@ -419,13 +419,9 @@ class Agent:
 
                         previous_size = current_size
 
-                if game.snake.check_collision()\
-                    or game.step > (50 * current_size):
-                    game_over = True
+                S = self.get_game_data(game)
 
-                S = self.get_game_data(game, game_over)
-
-                if game_over:
+                if game.game_over:
                     result_size.append(current_size)
                     result_step.append(game.step)
 
@@ -477,7 +473,7 @@ if __name__ == '__main__':
                   + "and then play. Training:")
 
             game = Game(board_size = board_size,
-                        local_state = arguments.local_state)
+                        local_state = arguments.local_state, relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
                           per = arguments.per)
@@ -485,7 +481,7 @@ if __name__ == '__main__':
                         update_target_freq = update_target_freq)
         else:
             game = Game(board_size = board_size,
-                        local_state = arguments.local_state)
+                        local_state = arguments.local_state, relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
                           per = arguments.per)
@@ -525,7 +521,7 @@ if __name__ == '__main__':
                   + "then play. Training:")
 
             game = Game(board_size = board_size,
-                        local_state = arguments.local_state)
+                        local_state = arguments.local_state, relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
                           per = arguments.per)
@@ -533,7 +529,7 @@ if __name__ == '__main__':
                         update_target_freq = update_target_freq)
         else:
             game = Game(board_size = board_size,
-                        local_state = arguments.local_state)
+                        local_state = arguments.local_state, relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
                           per = arguments.per)
