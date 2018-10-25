@@ -171,7 +171,7 @@ class Game:
         food_pos: Position of the food on the board.
         game_over: Flag for game_over.
     """
-    def __init__(self, board_size = 30, local_state = False, relative_pos = True):
+    def __init__(self, board_size = 30, local_state = False, relative_pos = False):
         """Initialize window, fps and score."""
         var.BOARD_SIZE = board_size
         self.local_state = local_state
@@ -191,8 +191,11 @@ class Game:
         self.game_over = False
 
     def create_window(self):
+        flags = pygame.DOUBLEBUF
         self.window = pygame.display.set_mode((var.BOARD_SIZE * var.BLOCK_SIZE,\
-                                               var.BOARD_SIZE * var.BLOCK_SIZE))
+                                               var.BOARD_SIZE * var.BLOCK_SIZE),
+                                               flags)
+        self.window.set_alpha(None)
         self.fps = pygame.time.Clock()
 
     def start(self):
@@ -229,6 +232,7 @@ class Game:
 
     def handle_input(self, previous_action):
         """After getting current pressed keys, handle important cases."""
+        pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN])
         keys = pygame.key.get_pressed()
         pygame.event.pump()
 
@@ -308,8 +312,6 @@ class Game:
 
     def play(self, action, player):
         """Move the snake to the direction, eat and check collision."""
-        assert action in range(self.nb_actions), "Invalid action."
-
         self.scored = False
         self.step += 1
         self.food_pos = self.generate_food()
