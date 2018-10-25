@@ -114,7 +114,7 @@ class Agent:
     def print_metrics(self, epoch, nb_epoch, history_size, history_loss,
                       history_step, history_reward, policy, value, win_count,
                       verbose = 1):
-        """"""
+        """Function to print metrics of training steps."""
         if verbose == 0:
             pass
         elif verbose == 1:
@@ -145,8 +145,8 @@ class Agent:
             else:
                 print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
                       + "\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
-    def train_model(self, model, target, batch_size, gamma, nb_actions,
-                    optimization = False):
+
+    def train_model(self, model, target, batch_size, gamma, nb_actions, epoch = 0):
         """Function to train the model on a batch of the data. The optimization
         flag is used when we are not playing, just batching and optimizing."""
         loss = 0.
@@ -164,8 +164,6 @@ class Agent:
                 loss = float(self.model.train_on_batch(inputs,
                                                        targets,
                                                        IS_weights))
-                if optimization:
-                    print("Optimizer turn: {:2d} | Epoch: {:03d}/{:03d} | Loss: {:.4f}".format(turn, epoch + 1, nb_epoch, loss))
 
         return loss
 
@@ -193,12 +191,15 @@ class Agent:
         for turn in range(optim_rounds):
             if turn > 0:
                 for epoch in range(nb_epoch):
-                    self.train_model(model = self.model,
-                                     target = self.target,
-                                     batch_size = batch_size,
-                                     gamma = gamma,
-                                     nb_actions = nb_actions,
-                                     optimization = True)
+                    loss = self.train_model(model = self.model,
+                                            epoch = epoch,
+                                            target = self.target,
+                                            batch_size = batch_size,
+                                            gamma = gamma,
+                                            nb_actions = nb_actions)
+
+                    print("Optimizer turn: {:2d} | Epoch: {:03d}/{:03d} | Loss: {:.4f}".format(turn, epoch + 1, nb_epoch, loss))
+
             else:
                 for epoch in range(nb_epoch):
                     loss = 0.
@@ -228,8 +229,7 @@ class Agent:
                                                      target = self.target,
                                                      batch_size = batch_size,
                                                      gamma = gamma,
-                                                     nb_actions = nb_actions,
-                                                     optimization = False)
+                                                     nb_actions = nb_actions)
 
                     if game.is_won():
                         win_count += 1 # Counter for metric purposes
@@ -246,9 +246,11 @@ class Agent:
                     history_loss.append(loss)
                     history_reward.append(total_reward)
 
-                    self.print_metrics(epoch, nb_epoch, history_size, history_loss,
-                                       history_step, history_reward, policy, value,
-                                       win_count, verbose)
+                    if epoch % 10 == 0:
+                        self.print_metrics(epoch, nb_epoch, history_size,
+                                           history_loss, history_step,
+                                           history_reward, policy, value,
+                                           win_count, verbose)
 
     def play(self, game, nb_epoch = 1000, eps = 0.01, temp = 0.01,
              visual = False, policy = "GreedyQPolicy"):
