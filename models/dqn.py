@@ -145,10 +145,33 @@ class Agent:
             else:
                 print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
                       + "\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
+    def train_model(self, model, target, batch_size, gamma, nb_actions,
+                    optimization = False):
+        """Function to train the model on a batch of the data. The optimization
+        flag is used when we are not playing, just batching and optimizing."""
+        loss = 0.
+
+        batch = self.memory.get_targets(model = self.model,
+                                        target = self.target,
+                                        batch_size = batch_size,
+                                        gamma = gamma,
+                                        nb_actions = nb_actions)
+
+        if batch:
+            inputs, targets, IS_weights = batch
+
+            if inputs is not None and targets is not None:
+                loss = float(self.model.train_on_batch(inputs,
+                                                       targets,
+                                                       IS_weights))
+                if optimization:
+                    print("Optimizer turn: {:2d} | Epoch: {:03d}/{:03d} | Loss: {:.4f}".format(turn, epoch + 1, nb_epoch, loss))
+
+        return loss
 
     def train(self, game, nb_epoch = 10000, batch_size = 64, gamma = 0.95,
               eps = [1., .01], temp = [1., 0.01], learning_rate = 0.5,
-              observe = 0, update_target_freq = 500, rounds = 1,
+              observe = 0, update_target_freq = 500, optim_rounds = 1,
               policy = "EpsGreedyQPolicy", verbose = 1):
         """The main training function, loops the game, remember and choose best
         action given game state (frames)."""
@@ -170,21 +193,12 @@ class Agent:
         for turn in range(optim_rounds):
             if turn > 0:
                 for epoch in range(nb_epoch):
-                    if epoch >= observe: # Get the batchs and train
-                        batch = self.memory.get_targets(model = self.model,
-                                                        target = self.target,
-                                                        batch_size = batch_size,
-                                                        gamma = gamma,
-                                                        nb_actions = nb_actions)
-
-                        if batch:
-                            inputs, targets, IS_weights = batch
-
-                            if inputs is not None and targets is not None:
-                                loss = float(self.model.train_on_batch(inputs,
-                                                                       targets,
-                                                                       IS_weights))
-                                print("Optimizer turn: {:2d} | Epoch: {:03d}/{:03d} | Loss: {:.4f}".format(turn, epoch + 1, nb_epoch, loss))
+                    self.train_model(model = self.model,
+                                     target = self.target,
+                                     batch_size = batch_size,
+                                     gamma = gamma,
+                                     nb_actions = nb_actions,
+                                     optimization = True)
             else:
                 for epoch in range(nb_epoch):
                     loss = 0.
@@ -196,7 +210,9 @@ class Agent:
 
                     while not game.game_over:
                         game.food_pos = game.generate_food()
-                        action, value = q_policy.select_action(self.model, S, epoch, nb_actions)
+                        action, value = q_policy.select_action(self.model,
+                                                               S, epoch,
+                                                               nb_actions)
 
                         game.play(action, "ROBOT")
                         r = game.get_reward()
@@ -208,24 +224,17 @@ class Agent:
                         S = S_prime # Advance to the next state (stack of S)
 
                         if epoch >= observe: # Get the batchs and train
-                            batch = self.memory.get_targets(model = self.model,
-                                                            target = self.target,
-                                                            batch_size = batch_size,
-                                                            gamma = gamma,
-                                                            nb_actions = nb_actions)
-
-                            if batch:
-                                inputs, targets, IS_weights = batch
-
-                                if inputs is not None and targets is not None:
-                                    loss += float(self.model.train_on_batch(inputs,
-                                                                            targets,
-                                                                            IS_weights))
+                            loss += self.train_model(model = self.model,
+                                                     target = self.target,
+                                                     batch_size = batch_size,
+                                                     gamma = gamma,
+                                                     nb_actions = nb_actions,
+                                                     optimization = False)
 
                     if game.is_won():
                         win_count += 1 # Counter for metric purposes
 
-                    if self.per: # Advance beta
+                    if self.per: # Advance beta, used in PER
                         self.memory.per_beta = self.memory.schedule.value(epoch)
 
                     if self.target is not None: # Update the target model
