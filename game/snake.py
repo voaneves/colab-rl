@@ -11,7 +11,6 @@ from itertools import tee # For the color gradient on snake
 # !pip install pygame # Jupyter Notebook
 import pygame # This is the engine used in the game
 import numpy as np
-import matplotlib.pyplot as plt
 
 __author__ = "Victor Neves"
 __license__ = "MIT"
@@ -178,7 +177,7 @@ class Game:
         self.local_state = local_state
         self.relative_pos = relative_pos
         if self.relative_pos:
-            self.nb_actions = 4
+            self.nb_actions = 3
         else:
             self.nb_actions = 5
         self.reset()
@@ -322,8 +321,9 @@ class Game:
             self.scored = True
             self.food_generator.set_food_on_screen(False)
 
-        if player == "HUMAN" and self.snake.check_collision():
-            self.over()
+        if player == "HUMAN":
+            if self.snake.check_collision():
+                self.over()
         elif self.snake.check_collision() or self.step > 50 * self.snake.length:
             self.game_over = True
 
@@ -334,7 +334,7 @@ class Game:
         elif self.scored:
             return self.snake.length
 
-        return 0
+        return -0.005
 
     def gradient(self, colors, steps, components = 3):
         """Function to create RGB gradients given 2 colors and steps.
