@@ -99,7 +99,7 @@ def CNN4(optimizer, loss, stack, input_size, output_size):
     model.add(Conv2D(64, 4, (2, 2), activation = 'relu'))
     model.add(Conv2D(64, 3, (2, 2), activation = 'relu'))
     model.add(Flatten())
-    model.add(Dense(256, activation = 'relu'))
+    model.add(Dense(3136, activation = 'relu'))
     model.add(Dense(output_size))
     model.compile(optimizer = optimizer, loss = loss)
 
