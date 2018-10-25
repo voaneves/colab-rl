@@ -90,6 +90,21 @@ def CNN3(optimizer, loss, stack, input_size, output_size, drop_prob = 0.1):
 
     return model
 
+def CNN4(optimizer, loss, stack, input_size, output_size):
+    """From @Kaixhin implementation's of the Rainbow paper."""
+    model = Sequential()
+    model.add(Conv2D(32, 8, (4, 4), activation = 'relu',input_shape = (stack,
+                                                                    input_size,
+                                                                    input_size)))
+    model.add(Conv2D(64, 4, (2, 2), activation = 'relu'))
+    model.add(Conv2D(64, 3, (2, 2), activation = 'relu'))
+    model.add(Flatten())
+    model.add(Dense(256, activation = 'relu'))
+    model.add(Dense(output_size))
+    model.compile(optimizer = optimizer, loss = loss)
+
+    return model
+
 def CNN_DUELING(optimizer, loss, stack, input_size, output_size):
     inputs = Input(shape = (stack, input_size, input_size))
     net = Conv2D(16, (3, 3), activation = 'relu')(inputs)
@@ -109,18 +124,22 @@ def CNN_DUELING(optimizer, loss, stack, input_size, output_size):
 
     return model
 
-def CNN_TEST_LOCAL(optimizer, frames_shape, local_shape, loss, output_size):
-    input_frames = Input(shape = frames_shape)
-    input_local = Input(shape = local_shape)
+def CNN_TEST_LOCAL(optimizer, global_state_shape, local_state_shape, loss, output_size):
+    global_state = Sequential()
+    global_state.add(Conv2D(16, activation = 'relu', input_shape = frames_shape))
 
-    merge_inputs = concatenate([input_frames, input_local])
+    local_state = Sequential()
+    local_state.add(Conv2D(16, activation = 'relu', input_shape = local_state_shape))
 
-    net = Conv2D(16, (3, 3), activation = 'relu')(merge_inputs)
-    net = Conv2D(32, (3, 3), activation = 'relu')(net)
-    net = Flatten()(net)
-    final = Dense(256, activation = 'relu')(net)
-    final = Dense(output_size)(final)
-    model = Model(inputs = [input_frames, input_local], outputs = final)
+    merge_inputs = Merge([global_state, local_state], mode = 'concat')
+
+    model = Sequential()
+    model.add(merge_inputs)
+    model.add(Conv2D(16, (3, 3), activation = 'relu'))
+    model.add(Conv2D(32, (3, 3), activation = 'relu'))
+    model.add(Flatten())
+    model.add(Dense(256, activation = 'relu'))
+    model.add(Dense(output_size))
     model.compile(optimizer = optimizer, loss = loss)
 
     return model
