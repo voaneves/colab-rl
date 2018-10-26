@@ -3,16 +3,21 @@
 """dqn: First try to create an AI for SnakeGame. Is it good enough?
 
 This algorithm is a implementation of DQN, Double DQN logic (using a target
-network to have fixed Q-targets), Dueling DQN logic (Q(s,a) = Advantage + Value)
-and PER (Prioritized Experience Replay, using Sum Trees). You can read more
-about these on https://medium.freecodecamp.org/improvements-in-deep-q-learning-dueling-double-dqn-prioritized-experience-replay-and-fixed-58b130cc5682
+network to have fixed Q-targets), Dueling DQN logic (Q(s,a) = Advantage + Value),
+PER (Prioritized Experience Replay, using Sum Trees) and Multi-step returns. You
+can read more about these on https://goo.gl/MctLzp
 
-Possible usage:
-    * Simple DQN;
-    * DDQN;
-    * DDDQN;
-    * DDDQN + PER;
-    * a combination of any of the above.
+Implemented algorithms:
+    * Simple DQN (with ExperienceReplay);
+        Paper: https://arxiv.org/abs/1312.5602
+    * Double DQN;
+        Paper: https://arxiv.org/abs/1509.06461
+    * Dueling DQN;
+        Paper: https://arxiv.org/abs/1511.06581
+    * DQN + PER;
+        Paper: https://arxiv.org/abs/1511.05952
+    * Multi-step returns.
+        Paper: https://arxiv.org/pdf/1703.01327
 
 Arguments:
     --load FILE.h5: load a previously trained model in '.h5' format.
@@ -118,33 +123,48 @@ class Agent:
         if verbose == 0:
             pass
         elif verbose == 1:
-            print("Epoch: {:03d}/{:03d} | Size: {:03d} | Ammount of steps: {:03d} | Wins: {:d} | Win percentage: {:.1f}%".format(epoch + 1, nb_epoch, history_size[-1], history_step[-1], win_count, 100 * win_count/(epoch + 1)))
+            print('Epoch: {:03d}/{:03d} | Mean size 10: {:.1f} | Longest 10: {:03d} | '
+                  + 'Mean steps 10: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%'\
+                  .format(epoch + 1, nb_epoch, sum(history_size[-10:]) / 10,
+                          sum(history_step[-10:]) / 10, win_count,
+                          100 * win_count/(epoch + 1)))
         else:
             # Print epoch info:
             print("Epoch: {:03d}/{:03d}".format(epoch + 1, nb_epoch))
 
             # Print training performance:
-            if epoch > 100:
-                print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
-                      + '\tTotal loss: {:.4f} | Loss per step: {:.4f} | Mean loss - 100 episodes: {:.4f}'.format(history_loss[-1], history_loss[-1]/history_step[-1], sum(history_loss[-100:]) / 100))
-                print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m'
-                      + "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f} | Mean size - 100 episodes: {:.1f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1], sum(history_step[-100:]) / 100))
-            else:
-                print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
-                      + "\tTotal loss: {:.4f} | Loss per step: {:.4f}".format(history_loss[-1], history_loss[-1]/history_step[-1]))
-                print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m' +
-                      "\t\tSize: {:d} | Ammount of steps: {:d} | Steps per food eaten: {:.1f}".format(history_size[-1], history_step[-1], history_size[-1] / history_step[-1]))
+            print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
+                  + '\tTotal loss: {:.4f} | Loss per step: {:.4f} | '
+                  + 'Mean loss - 100 episodes: {:.4f}'.format(history_loss[-1],
+                                                              history_loss[-1] / history_step[-1],
+                                                              sum(history_loss[-100:]) / 100))
+            print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m'
+                  + '\t\tSize: {:d} | Ammount of steps: {:d} | '
+                  + 'Steps per food eaten: {:.1f} | Mean size - 100 episodes: {:.1f}'\
+                  .format(history_size[-1], history_step[-1],
+                          history_size[-1] / history_step[-1],
+                          sum(history_step[-100:]) / 100))
 
             # Print policy metrics
             if policy == "BoltzmannQPolicy":
                 print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                      + "\tBoltzmann Temperature: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
+                      + '\tBoltzmann Temperature: {:.2f} | Episode reward: {:.1f} | '
+                      + 'Wins: {:d} | Win percentage: {:.1f}%''.format(value,
+                                                                       history_reward[-1],
+                                                                       win_count,
+                                                                       100 * win_count/(epoch + 1)))
             elif policy == "BoltzmannGumbelQPolicy":
                 print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                      + "\tNumber of actions: {:.0f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
+                      + '\tNumber of actions: {:.0f} | Episode reward: {:.1f} | '
+                      + 'Wins: {:d} | Win percentage: {:.1f}%'.format(value,
+                                                                      history_reward[-1],
+                                                                      win_count,
+                                                                      100 * win_count/(epoch + 1)))
             else:
                 print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                      + "\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%".format(value, history_reward[-1], win_count, 100 * win_count/(epoch + 1)))
+                      + '\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} |'
+                      + 'Win percentage: {:.1f}%'.format(value, history_reward[-1],
+                                                         win_count, 100 * win_count/(epoch + 1)))
 
     def train_model(self, model, target, batch_size, gamma, nb_actions, epoch = 0):
         """Function to train the model on a batch of the data. The optimization
@@ -170,7 +190,7 @@ class Agent:
     def train(self, game, nb_epoch = 10000, batch_size = 64, gamma = 0.95,
               eps = [1., .01], temp = [1., 0.01], learning_rate = 0.5,
               observe = 0, update_target_freq = 500, optim_rounds = 1,
-              policy = "EpsGreedyQPolicy", verbose = 1):
+              policy = "EpsGreedyQPolicy", verbose = 1, n_steps = None):
         """The main training function, loops the game, remember and choose best
         action given game state (frames)."""
 
@@ -188,6 +208,7 @@ class Agent:
 
         nb_actions = game.nb_actions
         win_count = 0
+
         for turn in range(optim_rounds):
             if turn > 0:
                 for epoch in range(nb_epoch):
@@ -198,12 +219,14 @@ class Agent:
                                             gamma = gamma,
                                             nb_actions = nb_actions)
 
-                    print("Optimizer turn: {:2d} | Epoch: {:03d}/{:03d} | Loss: {:.4f}".format(turn, epoch + 1, nb_epoch, loss))
-
+                    print('Optimizer turn: {:2d} | Epoch: {:03d}/{:03d} | '
+                          + 'Loss: {:.4f}'.format(turn, epoch + 1, nb_epoch, loss))
             else:
                 for epoch in range(nb_epoch):
                     loss = 0.
                     total_reward = 0.
+                    if n_steps is not None:
+                        n_step_buffer = []
                     game.reset()
                     self.clear_frames()
 
@@ -216,11 +239,22 @@ class Agent:
                                                                nb_actions)
 
                         game.play(action, "ROBOT")
+
                         r = game.get_reward()
                         total_reward += r
+                        if n_steps is not None:
+                            n_step_buffer.append(r)
+
+                            if len(n_step_buffer) < n_steps:
+                                R = r
+                            else:
+                                R = sum([n_step_buffer[i] * (gamma ** i)\
+                                        for i in range(n_steps)])
+                        else:
+                            R = r
 
                         S_prime = self.get_game_data(game)
-                        experience = [S, action, r, S_prime, game.game_over]
+                        experience = [S, action, R, S_prime, game.game_over]
                         self.memory.remember(*experience) # Add to the memory
                         S = S_prime # Advance to the next state (stack of S)
 
@@ -246,7 +280,7 @@ class Agent:
                     history_loss.append(loss)
                     history_reward.append(total_reward)
 
-                    if epoch % 10 == 0:
+                    if (epoch + 1) % 10 == 0:
                         self.print_metrics(epoch, nb_epoch, history_size,
                                            history_loss, history_step,
                                            history_reward, policy, value,
