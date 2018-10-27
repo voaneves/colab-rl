@@ -123,48 +123,55 @@ class Agent:
         if verbose == 0:
             pass
         elif verbose == 1:
-            print('Epoch: {:03d}/{:03d} | Mean size 10: {:.1f} | Longest 10: {:03d} | '
-                  + 'Mean steps 10: {:.1f} | Wins: {:d} | Win percentage: {:.1f}%'\
-                  .format(epoch + 1, nb_epoch, sum(history_size[-10:]) / 10,
-                          sum(history_step[-10:]) / 10, win_count,
-                          100 * win_count/(epoch + 1)))
+            text_epoch = ('Epoch: {:03d}/{:03d} | Mean size 10: {:.1f} | '
+                           + 'Longest 10: {:03d} | Mean steps 10: {:.1f} | '
+                           + 'Wins: {:d} | Win percentage: {:.1f}%')
+            print(text_epoch.format(epoch + 1, nb_epoch,
+                                    sum(history_size[-10:]) / 10,
+                                    max(history_size[-10:]),
+                                    sum(history_step[-10:]) / 10,
+                                    win_count, 100 * win_count/(epoch + 1)))
         else:
-            # Print epoch info:
-            print("Epoch: {:03d}/{:03d}".format(epoch + 1, nb_epoch))
+            text_epoch = 'Epoch: {:03d}/{:03d}' # Print epoch info
+            print(text_epoch.format(epoch + 1, nb_epoch))
 
-            # Print training performance:
-            print('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
-                  + '\tTotal loss: {:.4f} | Loss per step: {:.4f} | '
-                  + 'Mean loss - 100 episodes: {:.4f}'.format(history_loss[-1],
-                                                              history_loss[-1] / history_step[-1],
-                                                              sum(history_loss[-100:]) / 100))
-            print('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m'
-                  + '\t\tSize: {:d} | Ammount of steps: {:d} | '
-                  + 'Steps per food eaten: {:.1f} | Mean size - 100 episodes: {:.1f}'\
-                  .format(history_size[-1], history_step[-1],
-                          history_size[-1] / history_step[-1],
-                          sum(history_step[-100:]) / 100))
+            # Print training performance
+            text_train = ('\t\x1b[0;30;47m' + ' Training metrics ' + '\x1b[0m'
+                          + '\tTotal loss: {:.4f} | Loss per step: {:.4f} | '
+                          + 'Mean loss - 100 episodes: {:.4f}')
+            print(text_perf.format(history_loss[-1],
+                                   history_loss[-1] / history_step[-1],
+                                   sum(history_loss[-100:]) / 100))
+
+            text_game = ('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m'
+                         + '\t\tSize: {:d} | Ammount of steps: {:d} | '
+                         + 'Steps per food eaten: {:.1f} | '
+                         + 'Mean size - 100 episodes: {:.1f}')
+            print(text_game.format(history_size[-1], history_step[-1],
+                                   history_size[-1] / history_step[-1],
+                                   sum(history_step[-100:]) / 100))
 
             # Print policy metrics
             if policy == "BoltzmannQPolicy":
-                print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                      + '\tBoltzmann Temperature: {:.2f} | Episode reward: {:.1f} | '
-                      + 'Wins: {:d} | Win percentage: {:.1f}%''.format(value,
-                                                                       history_reward[-1],
-                                                                       win_count,
-                                                                       100 * win_count/(epoch + 1)))
+                text_policy = ('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
+                               + '\tBoltzmann Temperature: {:.2f} | '
+                               + 'Episode reward: {:.1f} | Wins: {:d} | '
+                               + 'Win percentage: {:.1f}%')
+                print(text_policy.format(value, history_reward[-1], win_count,
+                                         100 * win_count/(epoch + 1)))
             elif policy == "BoltzmannGumbelQPolicy":
-                print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                      + '\tNumber of actions: {:.0f} | Episode reward: {:.1f} | '
-                      + 'Wins: {:d} | Win percentage: {:.1f}%'.format(value,
-                                                                      history_reward[-1],
-                                                                      win_count,
-                                                                      100 * win_count/(epoch + 1)))
+                text_policy = ('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
+                               + '\tNumber of actions: {:.0f} | '
+                               + 'Episode reward: {:.1f} | Wins: {:d} | '
+                               + 'Win percentage: {:.1f}%')
+                print(text_policy.format(value, history_reward[-1], win_count,
+                                         100 * win_count/(epoch + 1)))
             else:
-                print('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
-                      + '\tEpsilon: {:.2f} | Episode reward: {:.1f} | Wins: {:d} |'
-                      + 'Win percentage: {:.1f}%'.format(value, history_reward[-1],
-                                                         win_count, 100 * win_count/(epoch + 1)))
+                text_policy = ('\t\x1b[0;30;47m' + ' Policy metrics ' + '\x1b[0m'
+                               + '\tEpsilon: {:.2f} | Episode reward: {:.1f} | '
+                               + 'Wins: {:d} | Win percentage: {:.1f}%')
+                print(text_policy.format(value, history_reward[-1], win_count,
+                                         100 * win_count/(epoch + 1)))
 
     def train_model(self, model, target, batch_size, gamma, nb_actions, epoch = 0):
         """Function to train the model on a batch of the data. The optimization
@@ -218,9 +225,9 @@ class Agent:
                                             batch_size = batch_size,
                                             gamma = gamma,
                                             nb_actions = nb_actions)
-
-                    print('Optimizer turn: {:2d} | Epoch: {:03d}/{:03d} | '
-                          + 'Loss: {:.4f}'.format(turn, epoch + 1, nb_epoch, loss))
+                    text_optim = ('Optimizer turn: {:2d} | Epoch: {:03d}/{:03d}'
+                                  + '| Loss: {:.4f}')
+                    print(text_optim.format(turn, epoch + 1, nb_epoch, loss))
             else:
                 for epoch in range(nb_epoch):
                     loss = 0.
