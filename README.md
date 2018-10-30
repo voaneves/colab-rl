@@ -3,7 +3,7 @@ SnakeAI
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Neves4/SnakeAI/graphs/commit-activity) [![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/) [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![Ask Me Anything !](https://img.shields.io/badge/Ask%20me-anything-1abc9c.svg)](https://GitHub.com/Neves4/ama)
 
-![SnakeAI: Human vs AI logo](/resources/images/snake_logo.png)
+![SnakeAI: Human vs AI logo](/resources/images/snake_logo.png){: .center-image}
 
 Snake game that can be controlled by human input and AI agents (DQN). Who's best? :8ball:
 
