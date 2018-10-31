@@ -234,7 +234,7 @@ class Agent:
                     total_reward = 0.
                     if n_steps is not None:
                         n_step_buffer = []
-                    game.reset()
+                    game.reset_game()
                     self.clear_frames()
 
                     S = self.get_game_data(game)
@@ -245,7 +245,7 @@ class Agent:
                                                                S, epoch,
                                                                nb_actions)
 
-                        game.play(action, "ROBOT")
+                        game.play(action)
 
                         r = game.get_reward()
                         total_reward += r
@@ -308,7 +308,7 @@ class Agent:
             q_policy = GreedyQPolicy()
 
         for epoch in range(nb_epoch):
-            game.reset()
+            game.reset_game()
             self.clear_frames()
             S = self.get_game_data(game)
 
@@ -322,7 +322,7 @@ class Agent:
 
             while not game.game_over:
                 action, value = q_policy.select_action(self.model, S, epoch, nb_actions)
-                game.play(action, "ROBOT")
+                game.play(action)
                 current_size = game.snake.length # Update the body size
 
                 if visual:
@@ -387,15 +387,16 @@ if __name__ == '__main__':
             print("Not using --load. Default behavior is to train the model "
                   + "and then play. Training:")
 
-            game = Game(board_size = board_size,
-                        local_state = arguments.local_state, relative_pos = False)
+            game = Game(player = "ROBOT", board_size = board_size,
+                        local_state = arguments.local_state,
+                        relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
                           per = arguments.per)
             agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8,
                         update_target_freq = update_target_freq)
         else:
-            game = Game(board_size = board_size,
+            game = Game(player = "ROBOT", board_size = board_size,
                         local_state = arguments.local_state, relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
@@ -435,7 +436,7 @@ if __name__ == '__main__':
             print("Not using --load. Default behavior is to train the model and"
                   + "then play. Training:")
 
-            game = Game(board_size = board_size,
+            game = Game(player = "ROBOT", board_size = board_size,
                         local_state = arguments.local_state, relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
@@ -443,7 +444,7 @@ if __name__ == '__main__':
             agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8,
                         update_target_freq = update_target_freq)
         else:
-            game = Game(board_size = board_size,
+            game = Game(player = "ROBOT", board_size = board_size,
                         local_state = arguments.local_state, relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
