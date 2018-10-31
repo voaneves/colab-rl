@@ -8,7 +8,6 @@ from os import environ, path # To center the game window the best possible
 import random # Random numbers used for the food
 import logging # Logging function for movements and errors
 from itertools import tee # For the color gradient on snake
-# !pip install pygame # Jupyter Notebook
 import pygame # This is the engine used in the game
 import numpy as np
 
@@ -45,19 +44,15 @@ class GlobalVariables:
         self.HEAD_COLOR = (0, 0, 0)
         self.BODY_COLOR = (0, 200, 0)
         self.FOOD_COLOR = (200, 0, 0)
-        self.GAME_SPEED = 24
+        self.GAME_SPEED = 10
+        self.BENCHMARK = 10
 
         if self.BOARD_SIZE > 50:
             logger.warning('WARNING: BOARD IS TOO BIG, IT MAY RUN SLOWER.')
 
-def resource_path(relative_path):
-    if hasattr(sys, '_MEIPASS'):
-        return path.join(sys._MEIPASS, relative_path)
-
-    return path.join(path.dirname(path.realpath(__file__)), relative_path)
-
-class MenuOption:
-    def __init__(self, text, pos, screen, scale = (1 / 12)):
+class TextBlock:
+    def __init__(self, text, pos, screen, scale = (1 / 12), type = "text"):
+        self.type = type
         self.hovered = False
         self.text = text
         self.pos = pos
@@ -71,20 +66,26 @@ class MenuOption:
         self.screen.blit(self.rend, self.rect)
 
     def set_rend(self):
-        font = pygame.font.Font(resource_path("resources/fonts/freesansbold.ttf"), int((var.BOARD_SIZE * var.BLOCK_SIZE) * self.scale))
-        self.rend = font.render(self.text, True, self.get_color(), self.get_background())
+        font = pygame.font.Font(resource_path("resources/fonts/freesansbold.ttf"),
+                                int((var.BOARD_SIZE * var.BLOCK_SIZE) * self.scale))
+        self.rend = font.render(self.text, True, self.get_color(),
+                                self.get_background())
 
     def get_color(self):
-        if self.hovered:
-            return pygame.Color(42, 42, 42)
-        else:
-            return pygame.Color(152, 152, 152)
+        if self.type == "menu":
+            if self.hovered:
+                return pygame.Color(42, 42, 42)
+            else:
+                return pygame.Color(152, 152, 152)
+
+        return pygame.Color(42, 42, 42)
 
     def get_background(self):
-        if self.hovered:
-            return pygame.Color(152, 152, 152)
-        else:
-            return None
+        if self.type == "menu":
+            if self.hovered:
+                return pygame.Color(152, 152, 152)
+
+        return None
 
     def set_rect(self):
         self.set_rend()
@@ -144,24 +145,6 @@ class Snake:
 
             return False
 
-    def check_collision(self):
-        """Check wether any collisions happened with the wall or body and re-
-        turn."""
-        if self.head[0] > (var.BOARD_SIZE - 1) or self.head[0] < 0:
-            logger.info('EVENT: WALL COLLISION')
-
-            return True
-        elif self.head[1] > (var.BOARD_SIZE - 1) or self.head[1] < 0:
-            logger.info('EVENT: WALL COLLISION')
-
-            return True
-        elif self.head in self.body[1:]:
-            logger.info('EVENT: BODY COLLISION')
-
-            return True
-
-        return False
-
     def return_body(self):
         """Return the whole body."""
         return self.body
@@ -213,18 +196,22 @@ class Game:
         food_pos: Position of the food on the board.
         game_over: Flag for game_over.
     """
-    def __init__(self, board_size = 30, local_state = False, relative_pos = False):
+    def __init__(self, player, board_size = 30, local_state = False, relative_pos = False):
         """Initialize window, fps and score."""
         var.BOARD_SIZE = board_size
         self.local_state = local_state
         self.relative_pos = relative_pos
-        if self.relative_pos:
-            self.nb_actions = 3
-        else:
-            self.nb_actions = 5
-        self.reset()
+        self.player = player
 
-    def reset(self):
+        if player == "ROBOT":
+            if self.relative_pos:
+                self.nb_actions = 3
+            else:
+                self.nb_actions = 5
+
+            self.reset_game()
+
+    def reset_game(self):
         self.step = 0
         self.snake = Snake()
         self.food_generator = FoodGenerator(self.snake.body)
@@ -243,6 +230,8 @@ class Game:
         self.fps = pygame.time.Clock()
 
     def menu(self):
+        pygame.display.set_caption("SNAKE GAME  | PLAY NOW!")
+
         img = pygame.image.load(resource_path("resources/images/snake_logo.png"))
         img = pygame.transform.scale(img, (var.BOARD_SIZE * var.BLOCK_SIZE, int(var.BOARD_SIZE * var.BLOCK_SIZE / 3)))
 
@@ -250,10 +239,18 @@ class Game:
         img_rect = img.get_rect()
         img_rect.center = self.screen_rect.center
 
-        menu_options = [MenuOption(' PLAY GAME ', (self.screen_rect.centerx, 4 * self.screen_rect.centery / 10), self.window),
-                        MenuOption(' BENCHMARK ', (self.screen_rect.centerx, 6 * self.screen_rect.centery / 10), self.window),
-                        MenuOption(' LEADERBOARDS ', (self.screen_rect.centerx, 8 * self.screen_rect.centery / 10), self.window),
-                        MenuOption(' QUIT ', (self.screen_rect.centerx, 10 * self.screen_rect.centery / 10), self.window)]
+        menu_options = [TextBlock(' PLAY GAME ', (self.screen_rect.centerx,
+                                                  4 * self.screen_rect.centery / 10),
+                                                  self.window, (1 / 12), "menu"),
+                        TextBlock(' BENCHMARK ', (self.screen_rect.centerx,
+                                                  6 * self.screen_rect.centery / 10),
+                                                  self.window, (1 / 12), "menu"),
+                        TextBlock(' LEADERBOARDS ', (self.screen_rect.centerx,
+                                                     8 * self.screen_rect.centery / 10),
+                                                     self.window, (1 / 12), "menu"),
+                        TextBlock(' QUIT ', (self.screen_rect.centerx,
+                                             10 * self.screen_rect.centery / 10),
+                                             self.window, (1 / 12), "menu")]
 
         while True:
             pygame.event.pump()
@@ -292,25 +289,23 @@ class Game:
     def start_match(self):
         """Create some wait time before the actual drawing of the game."""
         for i in range(3):
+            time = str(3 - i)
             self.window.fill(pygame.Color(225, 225, 225))
 
-            # Game starts in
-            font1 = pygame.font.Font(resource_path("resources/fonts/freesansbold.ttf"), int((var.BOARD_SIZE * var.BLOCK_SIZE) / 10))
-            rend1 = font1.render('Game starts in', True, pygame.Color(42, 42, 42))
-            rect1 = rend1.get_rect()
-            rect1.center = (self.screen_rect.centerx, 4 * self.screen_rect.centery / 10)
-            self.window.blit(rend1, rect1)
+            # Game starts in 3, 2, 1
+            text = [TextBlock('Game starts in', (self.screen_rect.centerx,
+                                                 4 * self.screen_rect.centery / 10),
+                                                 self.window, (1 / 10), "text"),
+                    TextBlock(time, (self.screen_rect.centerx,
+                                                 12 * self.screen_rect.centery / 10),
+                                                 self.window, (1 / 1.5), "text")]
 
-            # 3, 2, 1
-            font2 = pygame.font.Font(resource_path("resources/fonts/freesansbold.ttf"), int((var.BOARD_SIZE * var.BLOCK_SIZE) / 1.5))
-            rend2 = font2.render(str(3 - i), True, pygame.Color(42, 42, 42))
-            rect2 = rend2.get_rect()
-            rect2.center = (self.screen_rect.centerx, 1.2 * self.screen_rect.centery)
-            self.window.blit(rend2, rect2)
+            for text_block in text:
+                text_block.draw()
 
             pygame.display.update()
-            pygame.display.set_caption("SNAKE GAME  |  Game starts in " +\
-                                       str(3 - i) + " second(s) ...")
+            pygame.display.set_caption("SNAKE GAME  |  Game starts in "
+                                       + time + " second(s) ...")
 
             pygame.time.wait(1000)
 
@@ -326,20 +321,21 @@ class Game:
                 pygame.quit()
                 sys.exit()
             elif opt == options['PLAY']:
+                self.select_speed()
+                self.reset_game()
                 self.start_match()
-                self.single_player()
-                opt = self.over()
+                score = self.single_player()
+                opt = self.over(score)
             elif opt == options['BENCHMARK']:
+                self.select_speed()
                 score = []
 
-                for i in range(10):
+                for i in range(var.BENCHMARK):
+                    self.reset_game()
                     self.start_match()
                     score.append(self.single_player())
 
-                    if i != 9:
-                        self.reset()
-
-                opt = self.over()
+                opt = self.over(score)
             elif opt == options['LEADERBOARDS']:
                 pass
             elif opt == options['ADD_LEADERBOARDS']:
@@ -347,17 +343,37 @@ class Game:
             elif opt == options['MENU']:
                 opt = self.menu()
 
-    def over(self):
+    def over(self, score):
         """If collision with wall or body, end the game."""
-        pygame.display.set_caption("SNAKE GAME  |  Score: "
-                            + str(self.snake.length - 3)
-                            + "  |  GAME OVER...")
-        logger.info('EVENT: GAME OVER | FINAL SCORE: ' + str(self.snake.length - 3))
+        menu_options = [None] * 5
 
-        menu_options = [MenuOption(' PLAY AGAIN ', (self.screen_rect.centerx, 4 * self.screen_rect.centery / 10), self.window, (1 / 10)),
-                        MenuOption(' GO TO MENU ', (self.screen_rect.centerx, 6 * self.screen_rect.centery / 10), self.window, (1 / 10)),
-                        MenuOption(' ADD TO LEADERBOARDS ', (self.screen_rect.centerx, 8 * self.screen_rect.centery / 10), self.window, (1 / 10)),
-                        MenuOption(' QUIT ', (self.screen_rect.centerx, 10 * self.screen_rect.centery / 10), self.window, (1 / 10))]
+        menu_options[0] = TextBlock(' PLAY AGAIN ', (self.screen_rect.centerx,
+                                                     4 * self.screen_rect.centery / 10),
+                                                     self.window, (1 / 15), "menu")
+        menu_options[1] = TextBlock(' GO TO MENU ', (self.screen_rect.centerx,
+                                                     6 * self.screen_rect.centery / 10),
+                                                     self.window, (1 / 15), "menu")
+        menu_options[3] = TextBlock(' QUIT ', (self.screen_rect.centerx,
+                                               10 * self.screen_rect.centery / 10),
+                                               self.window, (1 / 15), "menu")
+
+        if isinstance(score, int):
+            text_score = 'SCORE: ' + str(score)
+
+        else:
+            text_score = 'MEAN SCORE: ' + str(sum(score) / var.BENCHMARK)
+
+            menu_options[2] = TextBlock(' ADD TO LEADERBOARDS ', (self.screen_rect.centerx,
+                                                                  8 * self.screen_rect.centery / 10),
+                                                                  self.window, (1 / 15), "menu")
+
+        pygame.display.set_caption("SNAKE GAME  | " + text_score
+                                   + "  |  GAME OVER...")
+        logger.info('EVENT: GAME OVER | FINAL ' + text_score)
+
+        menu_options[4] = TextBlock(text_score, (self.screen_rect.centerx,
+                                                 15 * self.screen_rect.centery / 10),
+                                                 self.window, (1 / 10), "text")
 
         while True:
             pygame.event.pump()
@@ -367,6 +383,7 @@ class Game:
             self.window.fill(pygame.Color(225, 225, 225))
 
             for option in menu_options:
+                if option is not None:
                     option.draw()
 
                     if option.rect.collidepoint(pygame.mouse.get_pos()):
@@ -406,7 +423,7 @@ class Game:
         while True:
             action = self.handle_input()
 
-            if self.play(action, "HUMAN"):
+            if self.play(action):
                 return current_size
 
             self.draw(color_list)
@@ -417,6 +434,24 @@ class Game:
                                            current_size)
 
                 previous_size = current_size
+
+    def check_collision(self):
+        """Check wether any collisions happened with the wall or body and re-
+        turn."""
+        if self.snake.head[0] > (var.BOARD_SIZE - 1) or self.snake.head[0] < 0:
+            logger.info('EVENT: WALL COLLISION')
+
+            return True
+        elif self.snake.head[1] > (var.BOARD_SIZE - 1) or self.snake.head[1] < 0:
+            logger.info('EVENT: WALL COLLISION')
+
+            return True
+        elif self.snake.head in self.snake.body[1:]:
+            logger.info('EVENT: BODY COLLISION')
+
+            return True
+
+        return False
 
     def is_won(self):
         return self.snake.length > 3
@@ -432,7 +467,7 @@ class Game:
 
         if keys[pygame.K_ESCAPE] or keys[pygame.K_q]:
             logger.info('ACTION: KEY PRESSED: ESCAPE or Q')
-            self.over()
+            self.over(self.snake.length - 3)
         elif keys[pygame.K_LEFT]:
             logger.info('ACTION: KEY PRESSED: LEFT')
             return actions['LEFT']
@@ -504,7 +539,7 @@ class Game:
 
         return action
 
-    def play(self, action, player):
+    def play(self, action):
         """Move the snake to the direction, eat and check collision."""
         self.scored = False
         self.step += 1
@@ -517,10 +552,10 @@ class Game:
             self.scored = True
             self.food_generator.set_food_on_screen(False)
 
-        if player == "HUMAN":
-            if self.snake.check_collision():
+        if self.player == "HUMAN":
+            if self.check_collision():
                 return True
-        elif self.snake.check_collision() or self.step > 50 * self.snake.length:
+        elif self.check_collision() or self.step > 50 * self.snake.length:
             self.game_over = True
 
     def get_reward(self):
@@ -538,6 +573,7 @@ class Game:
         If component is changed to 4, it does the same to RGBA colors."""
         def linear_gradient(start, finish, substeps):
             yield start
+
             for i in range(1, substeps):
                 yield tuple([(start[j] + (float(i) / (substeps-1)) * (finish[j]\
                             - start[j])) for j in range(components)])
@@ -545,6 +581,7 @@ class Game:
         def pairs(seq):
             a, b = tee(seq)
             next(b, None)
+
             return zip(a, b)
 
         result = []
@@ -575,6 +612,12 @@ class Game:
         pygame.display.update()
         self.fps.tick(var.GAME_SPEED)
 
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        return path.join(sys._MEIPASS, relative_path)
+
+    return path.join(path.dirname(path.realpath(__file__)), relative_path)
+
 var = GlobalVariables() # Initializing GlobalVariables
 logger = logging.getLogger(__name__) # Setting logger
 environ['SDL_VIDEO_CENTERED'] = '1' # Centering the window
@@ -584,6 +627,6 @@ if __name__ == '__main__':
     # Setup basic configurations for logging in this module
     logging.basicConfig(format = '%(asctime)s %(module)s %(levelname)s: %(message)s',
                         datefmt = '%m/%d/%Y %I:%M:%S %p', level = logging.INFO)
-    game = Game()
+    game = Game(player = "HUMAN")
     game.create_window()
     game.start()
