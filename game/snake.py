@@ -500,18 +500,22 @@ class Game:
 
     def state(self):
         """Create a matrix of the current state of the game."""
-        body = self.snake.return_body()
         canvas = np.zeros((var.BOARD_SIZE, var.BOARD_SIZE))
 
-        for part in body:
-            canvas[part[0], part[1]] = point_type['BODY']
+        if self.game_over:
+            pass
+        else:
+            body = self.snake.return_body()
 
-        canvas[body[0][0], body[0][1]] = point_type['HEAD']
+            for part in body:
+                canvas[part[0], part[1]] = point_type['BODY']
 
-        if self.local_state:
-            canvas = self.eval_local_safety(canvas, body)
+            canvas[body[0][0], body[0][1]] = point_type['HEAD']
 
-        canvas[self.food_pos[0], self.food_pos[1]] = point_type['FOOD']
+            if self.local_state:
+                canvas = self.eval_local_safety(canvas, body)
+
+            canvas[self.food_pos[0], self.food_pos[1]] = point_type['FOOD']
 
         return canvas
 

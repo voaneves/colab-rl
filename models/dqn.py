@@ -48,7 +48,7 @@ from keras import backend as K
 K.set_image_dim_ordering('th')
 
 from game.snake import Game
-from utilities.networks import CNN1, CNN2, CNN3, CNN_DUELING
+from utilities.networks import *
 from utilities.clipped_error import clipped_error
 from utilities.argument_handler import HandleArguments
 from utilities.policy import *
@@ -94,10 +94,7 @@ class Agent:
 
     def get_game_data(self, game):
         """Create a list with 4 frames and append/pop them each frame."""
-        if game.game_over:
-            frame = np.zeros((self.board_size, self.board_size))
-        else:
-            frame = game.state()
+        frame = game.state()
 
         if self.frames is None:
             self.frames = [frame] * self.nb_frames
