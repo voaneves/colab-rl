@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""SnakeGame: A simple and fun exploration, meant to be used by AI algorithms.
+"""SnakeGame: A simple and fun exploration, meant to be used by Human and AI.
 """
 
 import sys # To close the window when the game is over
@@ -19,39 +19,75 @@ __email__ = "victorneves478@gmail.com"
 __status__ = "Production"
 
 # Actions, options and forbidden moves
-options = {'QUIT': 0, 'PLAY': 1, 'BENCHMARK': 2, 'LEADERBOARDS': 3, 'MENU': 4, 'ADD_LEADERBOARDS': 5}
+options = {'QUIT': 0, 'PLAY': 1, 'BENCHMARK': 2, 'LEADERBOARDS': 3, 'MENU': 4,
+           'ADD_LEADERBOARDS': 5}
 relative_actions = {'LEFT': 0, 'FORWARD': 1, 'RIGHT': 2}
 actions = {'LEFT': 0, 'RIGHT': 1, 'UP': 2, 'DOWN': 3, 'IDLE': 4}
 forbidden_moves = [(0, 1), (1, 0), (2, 3), (3, 2)]
 
+# Possible rewards in the game
+rewards = {'MOVE': -0.005, 'GAME_OVER': -1, 'SCORED': 1}
+
 # Types of point in the board
 point_type = {'EMPTY': 0, 'FOOD': 1, 'BODY': 2, 'HEAD': 3, 'DANGEROUS': 4}
+
+# Speed levels possible to human players
+levels = [" EASY ", " MEDIUM ", " HARD ", " MEGA HARDCORE "]
 
 class GlobalVariables:
     """Global variables to be used while drawing and moving the snake game.
 
-    Attributes:
-        BLOCK_SIZE: The size in pixels of a block.
-        HEAD_COLOR: Color of the head.
-        BODY_COLOR: Color of the body.
-        FOOD_COLOR: Color of the food.
-        GAME_SPEED: Speed in ticks of the game. The higher the faster.
+    Attributes
+    ----------
+    BOARD_SIZE: int, optional, default = 30
+        The size of the board.
+    BLOCK_SIZE: int, optional, default = 20
+        The size in pixels of a block.
+    HEAD_COLOR: tuple of 3 * int, optional, default = (42, 42, 42)
+        Color of the head. Start of the body color gradient.
+    TAIL_COLOR: tuple of 3 * int, optional, default = (152, 152, 152)
+        Color of the tail. End of the body color gradient.
+    FOOD_COLOR: tuple of 3 * int, optional, default = (200, 0, 0)
+        Color of the food.
+    GAME_SPEED: int, optional, default = 10
+        Speed in ticks of the game. The higher the faster.
+    BENCHMARK: int, optional, default = 10
+        Ammount of matches to BENCHMARK and possibly go to leaderboards.
     """
-    def __init__(self):
-        """Initialize all global variables."""
-        self.BOARD_SIZE = 30
-        self.BLOCK_SIZE = 20
-        self.HEAD_COLOR = (0, 0, 0)
-        self.BODY_COLOR = (0, 200, 0)
-        self.FOOD_COLOR = (200, 0, 0)
-        self.GAME_SPEED = 10
-        self.BENCHMARK = 10
+    def __init__(self, BOARD_SIZE = 30, BLOCK_SIZE = 20,
+                 HEAD_COLOR = (42, 42, 42), TAIL_COLOR = (152, 152, 152),
+                 FOOD_COLOR = (200, 0, 0), GAME_SPEED = 10, BENCHMARK = 10):
+        """Initialize all global variables. Can be updated with argument_handler.
+        """
+        self.BOARD_SIZE = BOARD_SIZE
+        self.BLOCK_SIZE = BLOCK_SIZE
+        self.HEAD_COLOR = HEAD_COLOR
+        self.TAIL_COLOR = TAIL_COLOR
+        self.FOOD_COLOR = FOOD_COLOR
+        self.GAME_SPEED = GAME_SPEED
+        self.BENCHMARK = BENCHMARK
 
-        if self.BOARD_SIZE > 50:
+        if self.BOARD_SIZE > 50: # Warn the user about performance
             logger.warning('WARNING: BOARD IS TOO BIG, IT MAY RUN SLOWER.')
 
 class TextBlock:
+    """Block of text class, used by pygame. Can be used to both text and menu.
+
+    Attributes:
+    ----------
+    text: string
+        The text to be displayed.
+    pos: tuple of 2 * int
+        Color of the tail. End of the body color gradient.
+    screen: pygame window object
+        The screen where the text is drawn.
+    scale: int, optional, default = 1 / 12
+        Adaptive scale to resize if the board size changes.
+    type: string, optional, default = "text"
+        Assert whether the BlockText is a text or menu option.
+    """
     def __init__(self, text, pos, screen, scale = (1 / 12), type = "text"):
+        """Initialize, set position of the rectangle and render the text block."""
         self.type = type
         self.hovered = False
         self.text = text
@@ -62,32 +98,53 @@ class TextBlock:
         self.draw()
 
     def draw(self):
+        """Set what to render and blit on the pygame screen."""
         self.set_rend()
         self.screen.blit(self.rend, self.rect)
 
     def set_rend(self):
+        """Set what to render (font, colors, sizes)"""
         font = pygame.font.Font(resource_path("resources/fonts/freesansbold.ttf"),
                                 int((var.BOARD_SIZE * var.BLOCK_SIZE) * self.scale))
         self.rend = font.render(self.text, True, self.get_color(),
                                 self.get_background())
 
     def get_color(self):
+        """Get color to render for text and menu (hovered or not).
+
+        Return
+        ----------
+        color: tuple of 3 * int
+            The color that will be rendered for the text block.
+        """
+        color = pygame.Color(42, 42, 42)
+
         if self.type == "menu":
             if self.hovered:
-                return pygame.Color(42, 42, 42)
+                pass
             else:
-                return pygame.Color(152, 152, 152)
+                color = pygame.Color(152, 152, 152)
 
-        return pygame.Color(42, 42, 42)
+        return color
 
     def get_background(self):
+        """Get background color to render for text (hovered or not) and menu.
+
+        Return
+        ----------
+        color: tuple of 3 * int
+            The color that will be rendered for the background of the text block.
+        """
+        color = None
+
         if self.type == "menu":
             if self.hovered:
-                return pygame.Color(152, 152, 152)
+                color = pygame.Color(152, 152, 152)
 
-        return None
+        return color
 
     def set_rect(self):
+        """Set the rectangle and it's position to draw on the screen."""
         self.set_rend()
         self.rect = self.rend.get_rect()
         self.rect.center = self.pos
@@ -101,10 +158,16 @@ class Snake:
     where the snake is looking at (head) and collisions happen when any element
     is superposed with the head.
 
-    Attributes:
-        head: The head of the snake, located according to the board size.
-        body: Starts with 3 parts and grows when food is eaten.
-        orientation: Current orientation where head is pointing.
+    Attributes
+    ----------
+    head: list of 2 * int, default = [BOARD_SIZE / 4, BOARD_SIZE / 4]
+        The head of the snake, located according to the board size.
+    body: list of lists of 2 * int
+        Starts with 3 parts and grows when food is eaten.
+    previous_action: int, default = 1
+        Last action which the snake took.
+    length: int, default = 3
+        Variable length of the snake, can increase when food is eaten.
     """
     def __init__(self):
         """Inits Snake with 3 body parts (one is the head) and pointing right"""
@@ -117,7 +180,15 @@ class Snake:
 
     def move(self, action, food_pos):
         """According to orientation, move 1 block. If the head is not positioned
-        on food, pop a body part. Else (food), return without popping."""
+        on food, pop a body part. Else, return without popping.
+
+        Return
+        ----------
+        ate_food: boolean
+            Flag which represents whether the snake ate or not food.
+        """
+        ate_food = False
+
         if action == actions['IDLE']\
             or (action, self.previous_action) in forbidden_moves:
             action = self.previous_action
@@ -139,23 +210,22 @@ class Snake:
             logger.info('EVENT: FOOD EATEN')
             self.length = len(self.body)
 
-            return True
+            ate_food = True
         else:
             self.body.pop()
 
-            return False
-
-    def return_body(self):
-        """Return the whole body."""
-        return self.body
+        return ate_food
 
 
 class FoodGenerator:
     """Generate and keep track of food.
 
-    Attributes:
-        pos: Current position of food.
-        is_food_on_screen: Flag for existence of food.
+    Attributes
+    ----------
+    pos:
+        Current position of food.
+    is_food_on_screen:
+        Flag for existence of food.
     """
     def __init__(self, body):
         """Initialize a food piece and set existence flag."""
@@ -163,7 +233,13 @@ class FoodGenerator:
         self.pos = self.generate_food(body)
 
     def generate_food(self, body):
-        """Generate food and verify if it's on a valid place."""
+        """Generate food and verify if it's on a valid place.
+
+        Return
+        ----------
+        pos: tuple of 2 * int
+            Position of the food that was generated. It can't be in the body.
+        """
         if not self.is_food_on_screen:
             while True:
                 food = [int((var.BOARD_SIZE - 1) * random.random()),
@@ -180,24 +256,38 @@ class FoodGenerator:
 
         return self.pos
 
-    def set_food_on_screen(self, bool_value):
-        """Set flag for existence (or not) of food."""
-        self.is_food_on_screen = bool_value
-
 
 class Game:
     """Hold the game window and functions.
 
-    Attributes:
-        window: pygame window to show the game.
-        fps: Define Clock and ticks in which the game will be displayed.
-        snake: The actual snake who is going to be played.
-        food_generator: Generator of food which responds to the snake.
-        food_pos: Position of the food on the board.
-        game_over: Flag for game_over.
+    Attributes
+    ----------
+    window: pygame display
+        Pygame window to show the game.
+    fps: pygame time clock
+        Define Clock and ticks in which the game will be displayed.
+    snake: object
+        The actual snake who is going to be played.
+    food_generator: object
+        Generator of food which responds to the snake.
+    food_pos: tuple of 2 * int
+        Position of the food on the board.
+    game_over: boolean
+        Flag for game_over.
+    player: string
+        Define if human or robots are playing the game.
+    board_size: int, optional, default = 30
+        The size of the board.
+    local_state: boolean, optional, default = False
+        Whether to use or not game expertise (used mostly by robots players).
+    relative_pos: boolean, optional, default = False
+        Whether to use or not relative position of the snake head. Instead of
+        actions, use relative_actions.
+    screen_rect: tuple of 2 * int
+        The screen rectangle, used to draw relatively positioned blocks.
     """
     def __init__(self, player, board_size = 30, local_state = False, relative_pos = False):
-        """Initialize window, fps and score."""
+        """Initialize window, fps and score. Change nb_actions if relative_pos"""
         var.BOARD_SIZE = board_size
         self.local_state = local_state
         self.relative_pos = relative_pos
@@ -212,6 +302,7 @@ class Game:
             self.reset_game()
 
     def reset_game(self):
+        """Reset the game environment."""
         self.step = 0
         self.snake = Snake()
         self.food_generator = FoodGenerator(self.snake.body)
@@ -220,6 +311,7 @@ class Game:
         self.game_over = False
 
     def create_window(self):
+        """Create a pygame display with BOARD_SIZE * BLOCK_SIZE dimension."""
         pygame.init()
 
         flags = pygame.DOUBLEBUF
@@ -227,15 +319,22 @@ class Game:
                                                var.BOARD_SIZE * var.BLOCK_SIZE),
                                                flags)
         self.window.set_alpha(None)
+        self.screen_rect = self.window.get_rect()
         self.fps = pygame.time.Clock()
 
     def menu(self):
+        """Main menu of the game.
+
+        Return
+        ----------
+        selected_option: int
+            The selected option in the main loop.
+        """
         pygame.display.set_caption("SNAKE GAME  | PLAY NOW!")
 
         img = pygame.image.load(resource_path("resources/images/snake_logo.png"))
         img = pygame.transform.scale(img, (var.BOARD_SIZE * var.BLOCK_SIZE, int(var.BOARD_SIZE * var.BLOCK_SIZE / 3)))
 
-        self.screen_rect = self.window.get_rect()
         img_rect = img.get_rect()
         img_rect.center = self.screen_rect.center
 
@@ -251,8 +350,10 @@ class Game:
                         TextBlock(' QUIT ', (self.screen_rect.centerx,
                                              10 * self.screen_rect.centery / 10),
                                              self.window, (1 / 12), "menu")]
+        selected = False
+        selected_option = None
 
-        while True:
+        while not selected:
             pygame.event.pump()
             ev = pygame.event.get()
 
@@ -267,24 +368,29 @@ class Game:
                     if option == menu_options[0]:
                         for event in ev:
                             if event.type == pygame.MOUSEBUTTONUP:
-                                return options['PLAY']
+                                selected_option = options['PLAY']
                     elif option == menu_options[1]:
                         for event in ev:
                             if event.type == pygame.MOUSEBUTTONUP:
-                                return options['BENCHMARK']
+                                selected_option = options['BENCHMARK']
                     elif option == menu_options[2]:
                         for event in ev:
                             if event.type == pygame.MOUSEBUTTONUP:
-                                return options['LEADERBOARDS']
+                                selected_option = options['LEADERBOARDS']
                     elif option == menu_options[3]:
                         for event in ev:
                             if event.type == pygame.MOUSEBUTTONUP:
-                                return options['QUIT']
+                                selected_option = options['QUIT']
                 else:
                     option.hovered = False
 
+            if selected_option is not None:
+                selected = True
+
             self.window.blit(img, img_rect.bottomleft)
             pygame.display.update()
+
+        return selected_option
 
     def start_match(self):
         """Create some wait time before the actual drawing of the game."""
@@ -321,13 +427,13 @@ class Game:
                 pygame.quit()
                 sys.exit()
             elif opt == options['PLAY']:
-                self.select_speed()
+                var.GAME_SPEED = self.select_speed()
                 self.reset_game()
                 self.start_match()
                 score = self.single_player()
                 opt = self.over(score)
             elif opt == options['BENCHMARK']:
-                self.select_speed()
+                var.GAME_SPEED = self.select_speed()
                 score = []
 
                 for i in range(var.BENCHMARK):
@@ -344,9 +450,14 @@ class Game:
                 opt = self.menu()
 
     def over(self, score):
-        """If collision with wall or body, end the game."""
-        menu_options = [None] * 5
+        """If collision with wall or body, end the game and open options.
 
+        Return
+        ----------
+        selected_option: int
+            The selected option in the main loop.
+        """
+        menu_options = [None] * 5
         menu_options[0] = TextBlock(' PLAY AGAIN ', (self.screen_rect.centerx,
                                                      4 * self.screen_rect.centery / 10),
                                                      self.window, (1 / 15), "menu")
@@ -359,10 +470,8 @@ class Game:
 
         if isinstance(score, int):
             text_score = 'SCORE: ' + str(score)
-
         else:
             text_score = 'MEAN SCORE: ' + str(sum(score) / var.BENCHMARK)
-
             menu_options[2] = TextBlock(' ADD TO LEADERBOARDS ', (self.screen_rect.centerx,
                                                                   8 * self.screen_rect.centery / 10),
                                                                   self.window, (1 / 15), "menu")
@@ -370,12 +479,13 @@ class Game:
         pygame.display.set_caption("SNAKE GAME  | " + text_score
                                    + "  |  GAME OVER...")
         logger.info('EVENT: GAME OVER | FINAL ' + text_score)
-
         menu_options[4] = TextBlock(text_score, (self.screen_rect.centerx,
                                                  15 * self.screen_rect.centery / 10),
                                                  self.window, (1 / 10), "text")
+        selected = False
+        selected_option = None
 
-        while True:
+        while not selected:
             pygame.event.pump()
             ev = pygame.event.get()
 
@@ -392,15 +502,15 @@ class Game:
                         if option == menu_options[0]:
                             for event in ev:
                                 if event.type == pygame.MOUSEBUTTONUP:
-                                    return options['PLAY']
+                                    selected_option = options['PLAY']
                         elif option == menu_options[1]:
                             for event in ev:
                                 if event.type == pygame.MOUSEBUTTONUP:
-                                    return options['MENU']
+                                    selected_option = options['MENU']
                         elif option == menu_options[2]:
                             for event in ev:
                                 if event.type == pygame.MOUSEBUTTONUP:
-                                    return options['ADD_LEADERBOARDS']
+                                    selected_option = options['ADD_LEADERBOARDS']
                         elif option == menu_options[3]:
                             for event in ev:
                                 if event.type == pygame.MOUSEBUTTONUP:
@@ -409,23 +519,95 @@ class Game:
                     else:
                         option.hovered = False
 
+            if selected_option is not None:
+                selected = True
+
             pygame.display.update()
 
+        return selected_option
+
+    def select_speed(self):
+        """Speed menu, right before calling start_match.
+
+        Return
+        ----------
+        speed: int
+            The selected speed in the main loop.
+        """
+        menu_options = [TextBlock(levels[0], (self.screen_rect.centerx,
+                                              4 * self.screen_rect.centery / 10),
+                                              self.window, (1 / 10), "menu"),
+                        TextBlock(levels[1], (self.screen_rect.centerx,
+                                              8 * self.screen_rect.centery / 10),
+                                              self.window, (1 / 10), "menu"),
+                        TextBlock(levels[2], (self.screen_rect.centerx,
+                                              12 * self.screen_rect.centery / 10),
+                                              self.window, (1 / 10), "menu"),
+                        TextBlock(levels[3], (self.screen_rect.centerx,
+                                              16 * self.screen_rect.centery / 10),
+                                              self.window, (1 / 10), "menu")]
+        selected = False
+        speed = None
+
+        while not selected:
+            pygame.event.pump()
+            ev = pygame.event.get()
+
+            # Game over screen
+            self.window.fill(pygame.Color(225, 225, 225))
+
+            for option in menu_options:
+                if option is not None:
+                    option.draw()
+
+                    if option.rect.collidepoint(pygame.mouse.get_pos()):
+                        option.hovered = True
+
+                        if option == menu_options[0]:
+                            for event in ev:
+                                if event.type == pygame.MOUSEBUTTONUP:
+                                    speed = 10
+                        elif option == menu_options[1]:
+                            for event in ev:
+                                if event.type == pygame.MOUSEBUTTONUP:
+                                    speed = 20
+                        elif option == menu_options[2]:
+                            for event in ev:
+                                if event.type == pygame.MOUSEBUTTONUP:
+                                    speed = 30
+                        elif option == menu_options[3]:
+                            for event in ev:
+                                if event.type == pygame.MOUSEBUTTONUP:
+                                    speed = 45
+                    else:
+                        option.hovered = False
+
+            if speed is not None:
+                selected = True
+
+            pygame.display.update()
+
+        return speed
+
     def single_player(self):
+        """Game loop for single_player (HUMANS).
+
+        Return
+        ----------
+        score: int
+            The final score for the match (discounted of initial length).
+        """
         # The main loop, it pump key_presses and update the board every tick.
         previous_size = self.snake.length # Initial size of the snake
         current_size = previous_size # Initial size
         color_list = self.gradient([(42, 42, 42), (152, 152, 152)],\
                                    previous_size)
 
-        # Main loop, where the snake keeps going each tick. It generate food, check
-        # collisions and draw.
-        while True:
+        # Main loop, where the snake keeps going each tick. It generate food,
+        # check collisions and draw.
+        while not self.game_over:
             action = self.handle_input()
-
-            if self.play(action):
-                return current_size
-
+            self.game_over = self.play(action)
             self.draw(color_list)
             current_size = self.snake.length # Update the body size
 
@@ -435,56 +617,93 @@ class Game:
 
                 previous_size = current_size
 
+        score = current_size - 3
+
+        return score
+
     def check_collision(self):
-        """Check wether any collisions happened with the wall or body and re-
-        turn."""
+        """Check wether any collisions happened with the wall or body.
+
+        Return
+        ----------
+        collided: boolean
+            Whether the snake collided or not.
+        """
+        collided = False
+
         if self.snake.head[0] > (var.BOARD_SIZE - 1) or self.snake.head[0] < 0:
             logger.info('EVENT: WALL COLLISION')
-
-            return True
+            collided = True
         elif self.snake.head[1] > (var.BOARD_SIZE - 1) or self.snake.head[1] < 0:
             logger.info('EVENT: WALL COLLISION')
-
-            return True
+            collided = True
         elif self.snake.head in self.snake.body[1:]:
             logger.info('EVENT: BODY COLLISION')
+            collided = True
 
-            return True
-
-        return False
+        return collided
 
     def is_won(self):
+        """Verify if the score is greater than 0.
+
+        Return
+        ----------
+        won: boolean
+            Whether the score is greater than 0.
+        """
         return self.snake.length > 3
 
     def generate_food(self):
-        return self.food_generator.generate_food(self.snake.body)
+        """Generate new food if needed.
+
+        Return
+        ----------
+        food_pos: tuple of 2 * int
+            Current position of the food.
+        """
+        food_pos = self.food_generator.generate_food(self.snake.body)
+
+        return food_pos
 
     def handle_input(self):
-        """After getting current pressed keys, handle important cases."""
+        """After getting current pressed keys, handle important cases.
+
+        Return
+        ----------
+        action: int
+            Handle human input to assess the next action.
+        """
         pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN])
         keys = pygame.key.get_pressed()
         pygame.event.pump()
+        action = self.snake.previous_action
 
         if keys[pygame.K_ESCAPE] or keys[pygame.K_q]:
             logger.info('ACTION: KEY PRESSED: ESCAPE or Q')
             self.over(self.snake.length - 3)
         elif keys[pygame.K_LEFT]:
             logger.info('ACTION: KEY PRESSED: LEFT')
-            return actions['LEFT']
+            action = actions['LEFT']
         elif keys[pygame.K_RIGHT]:
             logger.info('ACTION: KEY PRESSED: RIGHT')
-            return actions['RIGHT']
+            action = actions['RIGHT']
         elif keys[pygame.K_UP]:
             logger.info('ACTION: KEY PRESSED: UP')
-            return actions['UP']
+            action = actions['UP']
         elif keys[pygame.K_DOWN]:
             logger.info('ACTION: KEY PRESSED: DOWN')
-            return actions['DOWN']
-        else:
-            return self.snake.previous_action
+            action = actions['DOWN']
+
+        return action
 
     def eval_local_safety(self, canvas, body):
-        """Evaluate the safety of the head's possible next movements."""
+        """Evaluate the safety of the head's possible next movements.
+
+        Return
+        ----------
+        canvas: np.array of size BOARD_SIZE**2
+            After using game expertise, change canvas values to DANGEROUS if true.
+        """
         if (body[0][0] + 1) > (var.BOARD_SIZE - 1)\
             or ([body[0][0] + 1, body[0][1]]) in body[1:]:
             canvas[var.BOARD_SIZE - 1, 0] = point_type['DANGEROUS']
@@ -499,13 +718,19 @@ class Game:
         return canvas
 
     def state(self):
-        """Create a matrix of the current state of the game."""
+        """Create a matrix of the current state of the game.
+
+        Return
+        ----------
+        canvas: np.array of size BOARD_SIZE**2
+            Return the current state of the game in a matrix.
+        """
         canvas = np.zeros((var.BOARD_SIZE, var.BOARD_SIZE))
 
         if self.game_over:
             pass
         else:
-            body = self.snake.return_body()
+            body = self.snake.body
 
             for part in body:
                 canvas[part[0], part[1]] = point_type['BODY']
@@ -520,6 +745,13 @@ class Game:
         return canvas
 
     def relative_to_absolute(self, action):
+        """Translate relative actions to absolute.
+
+        Return
+        ----------
+        action: int
+            Translated action from relative to absolute.
+        """
         if action == relative_actions['FORWARD']:
             action = self.snake.previous_action
         elif action == relative_actions['LEFT']:
@@ -554,7 +786,7 @@ class Game:
 
         if self.snake.move(action, self.food_pos):
             self.scored = True
-            self.food_generator.set_food_on_screen(False)
+            self.food_generator.is_food_on_screen = False
 
         if self.player == "HUMAN":
             if self.check_collision():
@@ -563,18 +795,31 @@ class Game:
             self.game_over = True
 
     def get_reward(self):
-        """Return the current score. Can be used as the reward function."""
-        if self.game_over:
-            return -1
-        elif self.scored:
-            return self.snake.length
+        """Return the current score. Can be used as the reward function.
 
-        return -0.005
+        Return
+        ----------
+        reward: float
+            Current reward of the game.
+        """
+        reward = rewards['MOVE']
+
+        if self.game_over:
+            reward = rewards['GAME_OVER']
+        elif self.scored:
+            reward = self.snake.length
+
+        return reward
 
     def gradient(self, colors, steps, components = 3):
-        """Function to create RGB gradients given 2 colors and steps.
+        """Function to create RGB gradients given 2 colors and steps. If
+        component is changed to 4, it does the same to RGBA colors.
 
-        If component is changed to 4, it does the same to RGBA colors."""
+        Return
+        ----------
+        result: list of steps length of tuple of 3 * int (if RGBA, 4 * int)
+            List of colors of calculated gradient from start to end.
+        """
         def linear_gradient(start, finish, substeps):
             yield start
 
@@ -617,6 +862,7 @@ class Game:
         self.fps.tick(var.GAME_SPEED)
 
 def resource_path(relative_path):
+    """Function to return absolute paths. Used while creating .exe file."""
     if hasattr(sys, '_MEIPASS'):
         return path.join(sys._MEIPASS, relative_path)
 
