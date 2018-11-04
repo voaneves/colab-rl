@@ -1,8 +1,8 @@
 import numpy as np
-
 from random import sample, uniform
-from utilities.sum_tree import SumTree
-from utilities.sum_segment_tree import SumSegmentTree, MinSegmentTree
+from array import array  # Efficient numeric arrays
+
+from utilities.sum_tree import *
 from utilities.policy import LinearSchedule
 
 class ExperienceReplay:
@@ -271,11 +271,13 @@ class PrioritizedExperienceReplay:
         self._it_min[self.pos] = self.max_priority ** self.alpha
 
     def _sample_proportional(self, batch_size):
-        res = []
+        res = array('i')
+
         for _ in range(batch_size):
             mass = random.random() * self._it_sum.sum(0, self.exp_size() - 1)
             idx = self._it_sum.find_prefixsum_idx(mass)
             res.append(idx)
+
         return res
 
     def get_priority(self, errors):
@@ -285,7 +287,7 @@ class PrioritizedExperienceReplay:
     def get_samples(self, batch_size):
         idxes = self._sample_proportional(batch_size)
 
-        weights = []
+        weights = array('f')
         p_min = self._it_min.min() / self._it_sum.sum()
         max_weight = (p_min * self.exp_size()) ** (-self.beta)
 
