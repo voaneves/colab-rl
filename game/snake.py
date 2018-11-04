@@ -650,6 +650,7 @@ class Game:
 
                 self.draw(color_list)
 
+            pygame.display.update()
             self.fps.tick(100)  # Limit FPS to 100
 
         score = current_size - 3  # After the game is over, record score
@@ -893,8 +894,6 @@ class Game:
 
         pygame.display.set_caption("SNAKE GAME  |  Score: "
                                     + str(self.snake.length - 3))
-
-        pygame.display.update()
 
 def resource_path(relative_path):
     """Function to return absolute paths. Used while creating .exe file."""
