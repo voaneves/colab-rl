@@ -36,30 +36,30 @@ Arguments:
 import numpy as np
 from os import path, environ, sys
 import random
-
-import inspect # Making relative imports from parallel folders possible
-currentdir = path.dirname(path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = path.dirname(currentdir)
-sys.path.insert(0, parentdir)
+import inspect
 
 from keras.optimizers import RMSprop, Nadam
 from keras.models import load_model
 from keras import backend as K
-K.set_image_dim_ordering('th')
-
 from game.snake import Game
+from utilities.misc import *
 from utilities.networks import *
-from utilities.clipped_error import clipped_error
-from utilities.argument_handler import HandleArguments
 from utilities.policy import *
-from memory import ExperienceReplay
+from memory import *
 
 __author__ = "Victor Neves"
 __license__ = "MIT"
-__version__ = "1.0"
 __maintainer__ = "Victor Neves"
 __email__ = "victorneves478@gmail.com"
 __status__ = "Production"
+
+# Setting keras ordering
+K.set_image_dim_ordering('th')
+
+# Making relative imports from parallel folders possible
+currentdir = path.dirname(path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = path.dirname(currentdir)
+sys.path.insert(0, parentdir)
 
 class Agent:
     """Agent based in a simple DQN that can read states, remember and play.
@@ -73,12 +73,16 @@ class Agent:
     per: flag for PER usage.
     """
     def __init__(self, model, target, memory = None, memory_size = 150000,
-                 nb_frames = 4, board_size = 10, per = False):
+                 nb_frames = 4, board_size = 10, per = True,
+                 update_target_freq = 0.001):
         """Initialize the agent with given attributes."""
         if memory:
             self.memory = memory
         else:
-            self.memory = ExperienceReplay(memory_size = memory_size, per = per)
+            if not per:
+                self.memory = ExperienceReplay(memory_size = memory_size)
+            else:
+                self.memory = PrioritizedExperienceReplay(memory_size = memory_size)
 
         self.per = per
         self.model = model
@@ -87,6 +91,7 @@ class Agent:
         self.board_size = board_size
         self.frames = None
         self.target_updates = 0
+        self.update_target_freq = update_target_freq
 
     def reset_memory(self):
         """Reset memory if necessary."""
@@ -108,10 +113,22 @@ class Agent:
         """Reset frames to restart appending."""
         self.frames = None
 
-    def update_target_model(self):
+    def update_target_model_hard(self):
         """Update the target model with the main model's weights."""
         self.target_updates += 1
         self.target.set_weights(self.model.get_weights())
+
+    def transfer_weights(self):
+        """Transfer Weights from Model to Target at rate update_target_freq."""
+        model_weights = self.model.get_weights()
+        target_weights = self.target.get_weights()
+
+        for i in range(len(W)):
+            target_weights[i] = (self.update_target_freq * model_weights[i]
+                                 + ((1 - self.update_target_frequency)
+                                    * target_weights[i]))
+
+        self.target.set_weights(target_weights)
 
     def print_metrics(self, epoch, nb_epoch, history_size, history_loss,
                       history_step, history_reward, policy, value, win_count,
@@ -193,11 +210,10 @@ class Agent:
 
     def train(self, game, nb_epoch = 10000, batch_size = 64, gamma = 0.95,
               eps = [1., .01], temp = [1., 0.01], learning_rate = 0.5,
-              observe = 0, update_target_freq = 500, optim_rounds = 1,
-              policy = "EpsGreedyQPolicy", verbose = 1, n_steps = None):
+              observe = 0, optim_rounds = 1, policy = "EpsGreedyQPolicy",
+              verbose = 1, n_steps = None):
         """The main training function, loops the game, remember and choose best
         action given game state (frames)."""
-
         history_size = []
         history_step = []
         history_loss = []
@@ -273,11 +289,14 @@ class Agent:
                         win_count += 1 # Counter for metric purposes
 
                     if self.per: # Advance beta, used in PER
-                        self.memory.per_beta = self.memory.schedule.value(epoch)
+                        self.memory.beta = self.memory.schedule.value(epoch)
 
                     if self.target is not None: # Update the target model
-                        if epoch % update_target_freq == 0:
-                            self.update_target_model()
+                        if update_target_freq >= 1:
+                            if epoch % self.update_target_freq == 0:
+                                self.update_target_model_hard()
+                        elif update_target_freq < 1.: # soft update
+                            self.transfer_weights()
 
                     history_size.append(game.snake.length)
                     history_step.append(game.step)
@@ -389,15 +408,14 @@ if __name__ == '__main__':
                         relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
-                          per = arguments.per)
-            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8,
-                        update_target_freq = update_target_freq)
+                          per = arguments.per, update_target_freq = update_target_freq)
+            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8)
         else:
             game = Game(player = "ROBOT", board_size = board_size,
                         local_state = arguments.local_state, relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
-                          per = arguments.per)
+                          per = arguments.per, update_target_freq = update_target_freq)
 
             print("Loading file located in {}. We can play after that."
                     .format(arguments.args.load))
@@ -437,9 +455,8 @@ if __name__ == '__main__':
                         local_state = arguments.local_state, relative_pos = False)
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
-                          per = arguments.per)
-            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8,
-                        update_target_freq = update_target_freq)
+                          per = arguments.per, update_target_freq = update_target_freq)
+            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8)
         else:
             game = Game(player = "ROBOT", board_size = board_size,
                         local_state = arguments.local_state, relative_pos = False)
