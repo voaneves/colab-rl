@@ -3,12 +3,13 @@
 """SnakeGame: A simple and fun exploration, meant to be used by Human and AI.
 """
 
-import sys # To close the window when the game is over
-from os import environ, path # To center the game window the best possible
-import random # Random numbers used for the food
-import logging # Logging function for movements and errors
-from itertools import tee # For the color gradient on snake
-import pygame # This is the engine used in the game
+import sys  # To close the window when the game is over
+from array import array  # Efficient numeric arrays
+from os import environ, path  # To center the game window the best possible
+import random  # Random numbers used for the food
+import logging  # Logging function for movements and errors
+from itertools import tee  # For the color gradient on snake
+import pygame  # This is the engine used in the game
 import numpy as np
 
 __author__ = "Victor Neves"
@@ -31,8 +32,10 @@ rewards = {'MOVE': -0.005, 'GAME_OVER': -1, 'SCORED': 1}
 # Types of point in the board
 point_type = {'EMPTY': 0, 'FOOD': 1, 'BODY': 2, 'HEAD': 3, 'DANGEROUS': 4}
 
-# Speed levels possible to human players
+# Speed levels possible to human players, MEGA HARDCORE starts with MEDIUM and
+# increases with snake size
 levels = [" EASY ", " MEDIUM ", " HARD ", " MEGA HARDCORE "]
+speeds = {'EASY': 80, 'MEDIUM': 60, 'HARD': 40}
 
 class GlobalVariables:
     """Global variables to be used while drawing and moving the snake game.
@@ -56,7 +59,8 @@ class GlobalVariables:
     """
     def __init__(self, BOARD_SIZE = 30, BLOCK_SIZE = 20,
                  HEAD_COLOR = (42, 42, 42), TAIL_COLOR = (152, 152, 152),
-                 FOOD_COLOR = (200, 0, 0), GAME_SPEED = 10, BENCHMARK = 10):
+                 FOOD_COLOR = (200, 0, 0), GAME_SPEED = 80, GAME_FPS = 100,
+                 BENCHMARK = 10):
         """Initialize all global variables. Can be updated with argument_handler.
         """
         self.BOARD_SIZE = BOARD_SIZE
@@ -65,6 +69,7 @@ class GlobalVariables:
         self.TAIL_COLOR = TAIL_COLOR
         self.FOOD_COLOR = FOOD_COLOR
         self.GAME_SPEED = GAME_SPEED
+        self.GAME_FPS = GAME_FPS
         self.BENCHMARK = BENCHMARK
 
         if self.BOARD_SIZE > 50: # Warn the user about performance
@@ -178,6 +183,14 @@ class Snake:
         self.previous_action = 1
         self.length = 3
 
+    def is_movement_invalid(self, action):
+        valid = False
+
+        if (action, self.previous_action) in forbidden_moves:
+            valid = True
+
+        return valid
+
     def move(self, action, food_pos):
         """According to orientation, move 1 block. If the head is not positioned
         on food, pop a body part. Else, return without popping.
@@ -189,8 +202,7 @@ class Snake:
         """
         ate_food = False
 
-        if action == actions['IDLE']\
-            or (action, self.previous_action) in forbidden_moves:
+        if action == actions['IDLE'] or self.is_movement_invalid(action):
             action = self.previous_action
         else:
             self.previous_action = action
@@ -427,19 +439,19 @@ class Game:
                 pygame.quit()
                 sys.exit()
             elif opt == options['PLAY']:
-                var.GAME_SPEED = self.select_speed()
+                var.GAME_SPEED, mega_hardcore = self.select_speed()
                 self.reset_game()
                 self.start_match()
-                score = self.single_player()
+                score = self.single_player(mega_hardcore)
                 opt = self.over(score)
             elif opt == options['BENCHMARK']:
-                var.GAME_SPEED = self.select_speed()
-                score = []
+                var.GAME_SPEED, mega_hardcore = self.select_speed()
+                score = array('i')
 
                 for i in range(var.BENCHMARK):
                     self.reset_game()
                     self.start_match()
-                    score.append(self.single_player())
+                    score.append(self.single_player(mega_hardcore))
 
                 opt = self.over(score)
             elif opt == options['LEADERBOARDS']:
@@ -546,6 +558,7 @@ class Game:
                         TextBlock(levels[3], (self.screen_rect.centerx,
                                               16 * self.screen_rect.centery / 10),
                                               self.window, (1 / 10), "menu")]
+        mega_hardcore = False
         selected = False
         speed = None
 
@@ -566,19 +579,21 @@ class Game:
                         if option == menu_options[0]:
                             for event in ev:
                                 if event.type == pygame.MOUSEBUTTONUP:
-                                    speed = 10
+                                    speed = speeds['EASY']
                         elif option == menu_options[1]:
                             for event in ev:
                                 if event.type == pygame.MOUSEBUTTONUP:
-                                    speed = 20
+                                    speed = speeds['MEDIUM']
                         elif option == menu_options[2]:
                             for event in ev:
                                 if event.type == pygame.MOUSEBUTTONUP:
-                                    speed = 30
+                                    speed = speeds['HARD']
                         elif option == menu_options[3]:
                             for event in ev:
                                 if event.type == pygame.MOUSEBUTTONUP:
-                                    speed = 45
+                                    speed = speeds['MEDIUM']
+                                    mega_hardcore = True
+
                     else:
                         option.hovered = False
 
@@ -587,9 +602,9 @@ class Game:
 
             pygame.display.update()
 
-        return speed
+        return speed, mega_hardcore
 
-    def single_player(self):
+    def single_player(self, mega_hardcore = False):
         """Game loop for single_player (HUMANS).
 
         Return
@@ -603,21 +618,41 @@ class Game:
         color_list = self.gradient([(42, 42, 42), (152, 152, 152)],\
                                    previous_size)
 
-        # Main loop, where the snake keeps going each tick. It generate food,
-        # check collisions and draw.
+        # Main loop, where snakes moves after elapsed time is bigger than the
+        # move_wait time. The last_key pressed is recorded to make the game more
+        # smooth for human players.
+        elapsed = 0
+        last_key = self.snake.previous_action
+        move_wait = var.GAME_SPEED
+
         while not self.game_over:
-            action = self.handle_input()
-            self.game_over = self.play(action)
-            self.draw(color_list)
-            current_size = self.snake.length # Update the body size
+            elapsed += self.fps.get_time()  # Get elapsed time since last call.
 
-            if current_size > previous_size:
-                color_list = self.gradient([(42, 42, 42), (152, 152, 152)],\
-                                           current_size)
+            if mega_hardcore:  # Progressive speed increments, the hardest.
+                move_wait = var.GAME_SPEED - (2 * (self.snake.length - 3))
 
-                previous_size = current_size
+            key_input = self.handle_input()  # Receive inputs with tick.
+            invalid_key = self.snake.is_movement_invalid(key_input)
 
-        score = current_size - 3
+            if key_input is not None and not invalid_key:
+                last_key = key_input
+
+            if elapsed >= move_wait:  # Move and redraw
+                elapsed = 0
+                self.game_over = self.play(last_key)
+                current_size = self.snake.length  # Update the body size
+
+                if current_size > previous_size:
+                    color_list = self.gradient([(42, 42, 42), (152, 152, 152)],
+                                                   current_size)
+
+                    previous_size = current_size
+
+                self.draw(color_list)
+
+            self.fps.tick(100)  # Limit FPS to 100
+
+        score = current_size - 3  # After the game is over, record score
 
         return score
 
@@ -676,7 +711,7 @@ class Game:
         pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN])
         keys = pygame.key.get_pressed()
         pygame.event.pump()
-        action = self.snake.previous_action
+        action = None
 
         if keys[pygame.K_ESCAPE] or keys[pygame.K_q]:
             logger.info('ACTION: KEY PRESSED: ESCAPE or Q')
@@ -858,8 +893,8 @@ class Game:
 
         pygame.display.set_caption("SNAKE GAME  |  Score: "
                                     + str(self.snake.length - 3))
+
         pygame.display.update()
-        self.fps.tick(var.GAME_SPEED)
 
 def resource_path(relative_path):
     """Function to return absolute paths. Used while creating .exe file."""
