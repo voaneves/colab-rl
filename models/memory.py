@@ -59,7 +59,8 @@ class ExperienceReplay:
 
         return batch, IS_weights, None
 
-    def get_targets(self, target, model, batch_size, nb_actions, gamma = 0.9):
+    def get_targets(self, target, model, batch_size, nb_actions, gamma = 0.9,
+                    n_steps = 1):
         """Function to sample, set batch function and use it for targets."""
         if self.exp_size() < batch_size:
             return None
@@ -94,7 +95,7 @@ class ExperienceReplay:
 
         # Where the action happened, replace with the Q values of S_prime
         targets = np.array(Y[:batch_size])
-        value = r + gamma * (1 - game_over) * Qsa
+        value = r + (gamma ** n_steps) * (1 - game_over) * Qsa
         targets[range(batch_size), a.astype(int)] = value
 
         return S, targets, IS_weights
@@ -182,7 +183,8 @@ class PrioritizedExperienceReplayNaive:
 
         return np.array(batch), IS_weights, tree_indices
 
-    def get_targets(self, target, model, batch_size, nb_actions, gamma = 0.9):
+    def get_targets(self, target, model, batch_size, nb_actions, gamma = 0.9,
+                    n_steps = 1):
         """Function to sample, set batch function and use it for targets."""
         if self.exp_size() < batch_size:
             return None
@@ -217,7 +219,7 @@ class PrioritizedExperienceReplayNaive:
 
         # Where the action happened, replace with the Q values of S_prime
         targets = np.array(Y[:batch_size])
-        value =  r + gamma * (1 - game_over) * Qsa
+        value = r + (gamma ** n_steps) * (1 - game_over) * Qsa
         targets[range(batch_size), a.astype(int)] = value
 
         errors = np.abs(value - Y[:batch_size].max(axis = 1)).clip(max = 1.)
@@ -291,12 +293,14 @@ class PrioritizedExperienceReplay:
             p_sample = self._it_sum[idx] / self._it_sum.sum()
             weight = (p_sample * self.exp_size()) ** (-self.beta)
             weights.append(weight / max_weight)
+
         weights = np.array(weights, dtype=np.float32)
         samples = [self.memory[idx] for idx in idxes]
 
         return np.array(samples), weights, idxes
 
-    def get_targets(self, target, model, batch_size, nb_actions, gamma = 0.9):
+    def get_targets(self, target, model, batch_size, nb_actions, gamma = 0.9,
+                    n_steps = 1):
         """Function to sample, set batch function and use it for targets."""
         if self.exp_size() < batch_size:
             return None
@@ -331,7 +335,7 @@ class PrioritizedExperienceReplay:
 
         # Where the action happened, replace with the Q values of S_prime
         targets = np.array(Y[:batch_size])
-        value =  r + gamma * (1 - game_over) * Qsa
+        value = r + (gamma ** n_steps) * (1 - game_over) * Qsa
         targets[range(batch_size), a.astype(int)] = value
 
         errors = np.abs(value - Y[:batch_size].max(axis = 1)).clip(max = 1.)

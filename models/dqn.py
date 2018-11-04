@@ -72,8 +72,8 @@ class Agent:
     frames: the frames in each sars.
     per: flag for PER usage.
     """
-    def __init__(self, model, target, memory = None, memory_size = 150000,
-                 nb_frames = 4, board_size = 10, per = True,
+    def __init__(self, model, target = None, memory = None, memory_size = -1,
+                 nb_frames = 4, board_size = 10, per = False,
                  update_target_freq = 0.001):
         """Initialize the agent with given attributes."""
         if memory:
@@ -146,7 +146,7 @@ class Agent:
                                     sum(history_step[-10:]) / 10,
                                     win_count, 100 * win_count/(epoch + 1)))
         else:
-            text_epoch = 'Epoch: {:03d}/{:03d}' # Print epoch info
+            text_epoch = 'Epoch: {:03d}/{:03d}'  # Print epoch info
             print(text_epoch.format(epoch + 1, nb_epoch))
 
             # Print training performance
@@ -196,7 +196,8 @@ class Agent:
                                         target = self.target,
                                         batch_size = batch_size,
                                         gamma = gamma,
-                                        nb_actions = nb_actions)
+                                        nb_actions = nb_actions,
+                                        n_steps = self.n_steps)
 
         if batch:
             inputs, targets, IS_weights = batch
@@ -211,9 +212,12 @@ class Agent:
     def train(self, game, nb_epoch = 10000, batch_size = 64, gamma = 0.95,
               eps = [1., .01], temp = [1., 0.01], learning_rate = 0.5,
               observe = 0, optim_rounds = 1, policy = "EpsGreedyQPolicy",
-              verbose = 1, n_steps = None):
+              verbose = 1, n_steps = 1):
         """The main training function, loops the game, remember and choose best
         action given game state (frames)."""
+        if not hasattr(self, 'n_steps'):
+            self.n_steps = n_steps  # set attribute only once
+
         history_size = []
         history_step = []
         history_loss = []
@@ -245,12 +249,12 @@ class Agent:
                 for epoch in range(nb_epoch):
                     loss = 0.
                     total_reward = 0.
-                    if n_steps is not None:
-                        n_step_buffer = []
                     game.reset_game()
                     self.clear_frames()
-
                     S = self.get_game_data(game)
+
+                    if n_steps > 1:
+                        n_step_buffer = []
 
                     while not game.game_over:
                         game.food_pos = game.generate_food()
@@ -262,7 +266,7 @@ class Agent:
 
                         r = game.get_reward()
                         total_reward += r
-                        if n_steps is not None:
+                        if n_steps > 1:
                             n_step_buffer.append(r)
 
                             if len(n_step_buffer) < n_steps:
@@ -275,10 +279,10 @@ class Agent:
 
                         S_prime = self.get_game_data(game)
                         experience = [S, action, R, S_prime, game.game_over]
-                        self.memory.remember(*experience) # Add to the memory
-                        S = S_prime # Advance to the next state (stack of S)
+                        self.memory.remember(*experience)  # Add to the memory
+                        S = S_prime  # Advance to the next state (stack of S)
 
-                        if epoch >= observe: # Get the batchs and train
+                        if epoch >= observe:  # Get the batchs and train
                             loss += self.train_model(model = self.model,
                                                      target = self.target,
                                                      batch_size = batch_size,
@@ -286,16 +290,16 @@ class Agent:
                                                      nb_actions = nb_actions)
 
                     if game.is_won():
-                        win_count += 1 # Counter for metric purposes
+                        win_count += 1  # Counter for metric purposes
 
-                    if self.per: # Advance beta, used in PER
+                    if self.per:  # Advance beta, used in PER
                         self.memory.beta = self.memory.schedule.value(epoch)
 
-                    if self.target is not None: # Update the target model
+                    if self.target is not None:  # Update the target model
                         if update_target_freq >= 1:
                             if epoch % self.update_target_freq == 0:
                                 self.update_target_model_hard()
-                        elif update_target_freq < 1.: # soft update
+                        elif update_target_freq < 1.:  # soft update
                             self.transfer_weights()
 
                     history_size.append(game.snake.length)
@@ -331,15 +335,15 @@ class Agent:
             if visual:
                 game.create_window()
                 # The main loop, it pump key_presses and update every tick.
-                environ['SDL_VIDEO_CENTERED'] = '1' # Centering the window
-                previous_size = game.snake.length # Initial size of the snake
+                environ['SDL_VIDEO_CENTERED'] = '1'  # Centering the window
+                previous_size = game.snake.length  # Initial size of the snake
                 color_list = game.gradient([(42, 42, 42), (152, 152, 152)],\
                                                previous_size)
 
             while not game.game_over:
                 action, value = q_policy.select_action(self.model, S, epoch, nb_actions)
                 game.play(action)
-                current_size = game.snake.length # Update the body size
+                current_size = game.snake.length  # Update the body size
 
                 if visual:
                     game.draw(color_list)
