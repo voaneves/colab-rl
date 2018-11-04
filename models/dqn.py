@@ -45,13 +45,20 @@ Arguments
 """
 
 import numpy as np
+from array import array
 from os import path, environ, sys
 import random
 import inspect
 
+# Making relative imports from parallel folders possible
+currentdir = path.dirname(path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = path.dirname(currentdir)
+sys.path.insert(0, parentdir)
+
 from keras.optimizers import RMSprop, Nadam
 from keras.models import load_model
 from keras import backend as K
+
 from game.snake import Game
 from utilities.misc import *
 from utilities.networks import *
@@ -66,18 +73,13 @@ __status__ = "Production"
 
 K.set_image_dim_ordering('th')  # Setting keras ordering
 
-# Making relative imports from parallel folders possible
-currentdir = path.dirname(path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = path.dirname(currentdir)
-sys.path.insert(0, parentdir)
-
 class Agent:
     """Agent based in a simple DQN that can read states, remember and play.
 
     Attributes
     ----------
     memory: object
-        Memory used in training. ExperienceReplay or PrioritizedExperienceReplay.
+        Memory used in training. ExperienceReplay or PrioritizedExperienceReplay
     memory_size: int, optional, default = -1
         Capacity of the memory used.
     model: keras model
@@ -119,7 +121,6 @@ class Agent:
 
     def get_game_data(self, game):
         """Create a list with 4 frames and append/pop them each frame.
-
 
         Return
         ----------
@@ -169,9 +170,9 @@ class Agent:
                            + 'Longest 10: {:03d} | Mean steps 10: {:.1f} | '
                            + 'Wins: {:d} | Win percentage: {:.1f}%')
             print(text_epoch.format(epoch + 1, nb_epoch,
-                                    sum(history_size[-10:]) / 10,
+                                    np.mean(history_size[-10:]),
                                     max(history_size[-10:]),
-                                    sum(history_step[-10:]) / 10,
+                                    np.mean(history_step[-10:]),
                                     win_count, 100 * win_count/(epoch + 1)))
         else:
             text_epoch = 'Epoch: {:03d}/{:03d}'  # Print epoch info
@@ -183,7 +184,7 @@ class Agent:
                               + 'Mean loss - 100 episodes: {:.4f}')
                 print(text_perf.format(history_loss[-1],
                                        history_loss[-1] / history_step[-1],
-                                       sum(history_loss[-100:]) / 100))
+                                       np.mean(history_loss[-100:])))
 
             text_game = ('\t\x1b[0;30;47m' + ' Game metrics ' + '\x1b[0m'
                          + '\t\tSize: {:d} | Ammount of steps: {:d} | '
@@ -191,7 +192,7 @@ class Agent:
                          + 'Mean size - 100 episodes: {:.1f}')
             print(text_game.format(history_size[-1], history_step[-1],
                                    history_size[-1] / history_step[-1],
-                                   sum(history_step[-100:]) / 100))
+                                   np.mean(history_step[-100:])))
 
             # Print policy metrics
             if policy == "BoltzmannQPolicy":
@@ -251,10 +252,10 @@ class Agent:
         if not hasattr(self, 'n_steps'):
             self.n_steps = n_steps  # Set attribute only once
 
-        history_size = []  # Holds all the sizes
-        history_step = []  # Holds all the steps
-        history_loss = []  # Holds all the losses
-        history_reward = []  # Holds all the rewards
+        history_size = array('i')  # Holds all the sizes
+        history_step = array('f')  # Holds all the steps
+        history_loss = array('f')  # Holds all the losses
+        history_reward = array('f')  # Holds all the rewards
 
         # Select exploration policy. EpsGreedyQPolicy runs faster, but takes
         # longer to converge. BoltzmannGumbelQPolicy is the slowest, but
@@ -293,7 +294,7 @@ class Agent:
                     S = self.get_game_data(game)
 
                     if n_steps > 1:  # Create multi-step returns buffer.
-                        n_step_buffer = []
+                        n_step_buffer = array('f')
 
                     while not game.game_over:  # Main loop, until game_over
                         game.food_pos = game.generate_food()
@@ -346,10 +347,14 @@ class Agent:
                     history_reward.append(total_reward)
 
                     if (epoch + 1) % 10 == 0:
-                        self.print_metrics(epoch, nb_epoch, history_size,
-                                           history_loss, history_step,
-                                           history_reward, policy, value,
-                                           win_count, verbose)
+                        self.print_metrics(epoch = epoch, nb_epoch = nb_epoch,
+                                           history_size = history_size,
+                                           history_loss = history_loss,
+                                           history_step = history_step,
+                                           history_reward = history_reward,
+                                           policy = policy, value = value,
+                                           win_count = win_count,
+                                           verbose = verbose)
 
     def play(self, game, nb_epoch = 1000, eps = 0.01, temp = 0.01,
              visual = False, policy = "GreedyQPolicy"):
@@ -357,9 +362,9 @@ class Agent:
             in pygame."""
         win_count = 0
 
-        history_size = []  # Holds all the sizes
-        history_step = []  # Holds all the steps
-        history_reward = []  # Holds all the rewards
+        history_size = array('i')  # Holds all the sizes
+        history_step = array('f')  # Holds all the steps
+        history_reward = array('f')  # Holds all the rewards
 
         if policy == "BoltzmannQPolicy":
             q_policy = BoltzmannQPolicy(temp, temp, nb_epoch)
@@ -426,29 +431,18 @@ if __name__ == '__main__':
 
     if not arguments.status_visual:
         if not arguments.status_load:
-            if arguments.dueling:
-                model = CNN_DUELING(optimizer = RMSprop(), loss = clipped_error,
-                                    stack = nb_frames, input_size = board_size,
-                                    output_size = nb_actions)
+            model = create_model(optimizer = RMSprop(), loss = clipped_error,
+                                 stack = nb_frames, input_size = board_size,
+                                 output_size = nb_actions,
+                                 dueling = arguments.dueling, cnn = "CNN3")
 
-                target = None
-                if arguments.double:
-                    target = CNN_DUELING(optimizer = RMSprop(),
-                                         loss = clipped_error,
-                                         stack = nb_frames,
-                                         input_size = board_size,
-                                         output_size = nb_actions)
-
-            else:
-                model = CNN1(optimizer = RMSprop(), loss = clipped_error,
-                            stack = nb_frames, input_size = board_size,
-                            output_size = nb_actions)
-
-                target = None
-                if arguments.double:
-                    target = CNN1(optimizer = RMSprop(), loss = clipped_error,
-                                  stack = nb_frames, input_size = board_size,
-                                  output_size = nb_actions)
+            target = None
+            if arguments.double:
+                target = create_model(optimizer = RMSprop(),
+                                      loss = clipped_error, stack = nb_frames,
+                                      input_size = board_size,
+                                      output_size = nb_actions,
+                                      dueling = arguments.dueling, cnn = "CNN3")
 
             print("Not using --load. Default behavior is to train the model "
                   + "and then play. Training:")
@@ -459,7 +453,8 @@ if __name__ == '__main__':
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
                           per = arguments.per, update_target_freq = update_target_freq)
-            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8)
+            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.95,
+                        n_steps = 1)
         else:
             game = Game(player = "ROBOT", board_size = board_size,
                         local_state = arguments.local_state, relative_pos = False)
@@ -475,28 +470,18 @@ if __name__ == '__main__':
         agent.play(game, visual = False)
     else:
         if not arguments.status_load:
-            if arguments.dueling:
-                model = CNN_DUELING(optimizer = RMSprop(), loss = clipped_error,
-                                    stack = nb_frames, input_size = board_size,
-                                    output_size = nb_actions)
-                target = None
-                if arguments.double:
-                    target = CNN_DUELING(optimizer = RMSprop(),
-                                         loss = clipped_error,
-                                         stack = nb_frames,
-                                         input_size = board_size,
-                                         output_size = nb_actions)
+            model = create_model(optimizer = RMSprop(), loss = clipped_error,
+                                 stack = nb_frames, input_size = board_size,
+                                 output_size = nb_actions,
+                                 dueling = arguments.dueling, cnn = "CNN3")
 
-            else:
-                model = CNN1(optimizer = RMSprop(), loss = clipped_error,
-                            stack = nb_frames, input_size = board_size,
-                            output_size = nb_actions)
-
-                target = None
-                if arguments.double:
-                    target = CNN1(optimizer = RMSprop(), loss = clipped_error,
-                                  stack = nb_frames, input_size = board_size,
-                                  output_size = nb_actions)
+            target = None
+            if arguments.double:
+                target = create_model(optimizer = RMSprop(),
+                                      loss = clipped_error, stack = nb_frames,
+                                      input_size = board_size,
+                                      output_size = nb_actions,
+                                      dueling = arguments.dueling, cnn = "CNN3")
 
             print("Not using --load. Default behavior is to train the model and"
                   + "then play. Training:")
@@ -506,13 +491,13 @@ if __name__ == '__main__':
             agent = Agent(model = model, target = target, memory_size = -1,
                           nb_frames = nb_frames, board_size = board_size,
                           per = arguments.per, update_target_freq = update_target_freq)
-            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.8)
+            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.95,
+                        n_steps = 1)
         else:
             game = Game(player = "ROBOT", board_size = board_size,
                         local_state = arguments.local_state, relative_pos = False)
-            agent = Agent(model = model, target = target, memory_size = -1,
-                          nb_frames = nb_frames, board_size = board_size,
-                          per = arguments.per)
+            agent = Agent(model = model, memory_size = -1,
+                          board_size = board_size)
 
             print("Loading file located in {}. We can play after that."\
                   .format(arguments.args.load))
