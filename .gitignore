@@ -1,5 +1,6 @@
 
 *.pyc
+game/executable_test
 models/dqn_visual1.py
 models/ddqn_per.py
 models/ddqn.py
