@@ -17,8 +17,10 @@ Implemented algorithms
         Paper: https://arxiv.org/abs/1511.06581
     * Prioritized Experience Replay (PER);
         Paper: https://arxiv.org/abs/1511.05952
-    * Multi-step returns.
+    * Multi-step returns (n-steps);
         Paper: https://arxiv.org/pdf/1703.01327
+    * Noisy nets.
+        Paper: https://arxiv.org/abs/1706.10295
 
 Arguments
 ----------
@@ -46,24 +48,12 @@ Arguments
 
 import numpy as np
 from array import array
-from os import path, environ, sys
 import random
-import inspect
 
-# Making relative imports from parallel folders possible
-currentdir = path.dirname(path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = path.dirname(currentdir)
-sys.path.insert(0, parentdir)
-
-from keras.optimizers import RMSprop, Nadam
-from keras.models import load_model
-from keras import backend as K
-
-from game.snake import Game
-from utilities.misc import *
-from utilities.networks import *
-from utilities.policy import *
-from memory import *
+import pygame
+from .utilities.policy import GreedyQPolicy, EpsGreedyQPolicy, BoltzmannQPolicy,\
+                             BoltzmannGumbelQPolicy
+from .memory import ExperienceReplay, PrioritizedExperienceReplay
 
 __author__ = "Victor Neves"
 __license__ = "MIT"
@@ -71,7 +61,6 @@ __maintainer__ = "Victor Neves"
 __email__ = "victorneves478@gmail.com"
 __status__ = "Production"
 
-K.set_image_dim_ordering('th')  # Setting keras ordering
 
 class Agent:
     """Agent based in a simple DQN that can read states, remember and play.
@@ -313,6 +302,8 @@ class Agent:
                             else:
                                 R = sum([n_step_buffer[i] * (gamma ** i)\
                                         for i in range(n_steps)])
+
+                                n_step_buffer.pop(0)
                         else:
                             R = r
 
@@ -356,7 +347,7 @@ class Agent:
                                            win_count = win_count,
                                            verbose = verbose)
 
-    def play(self, game, nb_epoch = 1000, eps = 0.01, temp = 0.01,
+    def test(self, game, nb_epoch = 1000, eps = 0.01, temp = 0.01,
              visual = False, policy = "GreedyQPolicy"):
         """Play the game with the trained agent. Can use the visual tag to draw
             in pygame."""
@@ -376,22 +367,41 @@ class Agent:
         for epoch in range(nb_epoch):
             game.reset_game()
             self.clear_frames()
-            S = self.get_game_data(game)
 
             if visual:
                 game.create_window()
-                # The main loop, it pump key_presses and update every tick.
-                environ['SDL_VIDEO_CENTERED'] = '1'  # Centering the window
                 previous_size = game.snake.length  # Initial size of the snake
                 color_list = game.gradient([(42, 42, 42), (152, 152, 152)],\
                                                previous_size)
+                elapsed = 0
 
             while not game.game_over:
-                action, value = q_policy.select_action(self.model, S, epoch, nb_actions)
-                game.play(action)
-                current_size = game.snake.length  # Update the body size
-
                 if visual:
+                    elapsed += game.fps.get_time()  # Get elapsed time since last call.
+
+                    if elapsed >= 60:
+                        elapsed = 0
+                        S = self.get_game_data(game)
+                        action, value = q_policy.select_action(self.model, S, epoch, game.nb_actions)
+                        game.play(action)
+                        current_size = game.snake.length  # Update the body size
+
+                        if current_size > previous_size:
+                            color_list = game.gradient([(42, 42, 42), (152, 152, 152)],
+                                                       game.snake.length)
+
+                            previous_size = current_size
+
+                        game.draw(color_list)
+
+                    pygame.display.update()
+                    game.fps.tick(120)  # Limit FPS to 100
+                else:
+                    S = self.get_game_data(game)
+                    action, value = q_policy.select_action(self.model, S, epoch, game.nb_actions)
+                    game.play(action)
+                    current_size = game.snake.length  # Update the body size
+
                     game.draw(color_list)
 
                     if current_size > previous_size:
@@ -399,8 +409,6 @@ class Agent:
                                                    game.snake.length)
 
                         previous_size = current_size
-
-                S = self.get_game_data(game)
 
                 if game.game_over:
                     history_size.append(current_size)
@@ -420,88 +428,3 @@ class Agent:
         print("Mean rewards: {} | Biggest reward: {} | Smallest reward: {}"\
               .format(np.mean(history_reward), np.max(history_reward),
                       np.min(history_reward)))
-
-
-if __name__ == '__main__':
-    arguments = HandleArguments()
-    board_size = arguments.args.board_size
-    nb_actions = arguments.args.nb_actions
-    nb_frames = arguments.args.nb_frames
-    update_target_freq = arguments.args.update_freq
-
-    if not arguments.status_visual:
-        if not arguments.status_load:
-            model = create_model(optimizer = RMSprop(), loss = clipped_error,
-                                 stack = nb_frames, input_size = board_size,
-                                 output_size = nb_actions,
-                                 dueling = arguments.dueling, cnn = "CNN3")
-
-            target = None
-            if arguments.double:
-                target = create_model(optimizer = RMSprop(),
-                                      loss = clipped_error, stack = nb_frames,
-                                      input_size = board_size,
-                                      output_size = nb_actions,
-                                      dueling = arguments.dueling, cnn = "CNN3")
-
-            print("Not using --load. Default behavior is to train the model "
-                  + "and then play. Training:")
-
-            game = Game(player = "ROBOT", board_size = board_size,
-                        local_state = arguments.local_state,
-                        relative_pos = False)
-            agent = Agent(model = model, target = target, memory_size = -1,
-                          nb_frames = nb_frames, board_size = board_size,
-                          per = arguments.per, update_target_freq = update_target_freq)
-            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.95,
-                        n_steps = 1)
-        else:
-            game = Game(player = "ROBOT", board_size = board_size,
-                        local_state = arguments.local_state, relative_pos = False)
-            agent = Agent(model = model, target = target, memory_size = -1,
-                          nb_frames = nb_frames, board_size = board_size,
-                          per = arguments.per, update_target_freq = update_target_freq)
-
-            print("Loading file located in {}. We can play after that."
-                    .format(arguments.args.load))
-
-        print("--visual not used. Default behavior is to have drawing disabled."
-              + " Playing:")
-        agent.play(game, visual = False)
-    else:
-        if not arguments.status_load:
-            model = create_model(optimizer = RMSprop(), loss = clipped_error,
-                                 stack = nb_frames, input_size = board_size,
-                                 output_size = nb_actions,
-                                 dueling = arguments.dueling, cnn = "CNN3")
-
-            target = None
-            if arguments.double:
-                target = create_model(optimizer = RMSprop(),
-                                      loss = clipped_error, stack = nb_frames,
-                                      input_size = board_size,
-                                      output_size = nb_actions,
-                                      dueling = arguments.dueling, cnn = "CNN3")
-
-            print("Not using --load. Default behavior is to train the model and"
-                  + "then play. Training:")
-
-            game = Game(player = "ROBOT", board_size = board_size,
-                        local_state = arguments.local_state, relative_pos = False)
-            agent = Agent(model = model, target = target, memory_size = -1,
-                          nb_frames = nb_frames, board_size = board_size,
-                          per = arguments.per, update_target_freq = update_target_freq)
-            agent.train(game, batch_size = 64, nb_epoch = 10000, gamma = 0.95,
-                        n_steps = 1)
-        else:
-            game = Game(player = "ROBOT", board_size = board_size,
-                        local_state = arguments.local_state, relative_pos = False)
-            agent = Agent(model = model, memory_size = -1,
-                          board_size = board_size)
-
-            print("Loading file located in {}. We can play after that."\
-                  .format(arguments.args.load))
-
-        print("--visual is activated. Drawing the board and controlled by the"
-              + "DQN Agent. Playing:")
-        agent.play(game, visual = True)
