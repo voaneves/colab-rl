@@ -35,7 +35,8 @@ point_type = {'EMPTY': 0, 'FOOD': 1, 'BODY': 2, 'HEAD': 3, 'DANGEROUS': 4}
 # Speed levels possible to human players, MEGA HARDCORE starts with MEDIUM and
 # increases with snake size
 levels = [" EASY ", " MEDIUM ", " HARD ", " MEGA HARDCORE "]
-speeds = {'EASY': 80, 'MEDIUM': 60, 'HARD': 40}
+speeds = {'EASY': 80, 'MEDIUM': 60, 'HARD': 40, 'MEGA_HARDCORE': 65}
+
 
 class GlobalVariables:
     """Global variables to be used while drawing and moving the snake game.
@@ -334,6 +335,49 @@ class Game:
         self.screen_rect = self.window.get_rect()
         self.fps = pygame.time.Clock()
 
+    def cycle_menu(self, menu_options, list_menu, dict, img = None,
+                   img_rect = None):
+        """"""
+        selected = False
+        selected_option = None
+
+        while not selected:
+            pygame.event.pump()
+            events = pygame.event.get()
+
+            self.window.fill(pygame.Color(225, 225, 225))
+
+            for i, option in enumerate(menu_options):
+                if option is not None:
+                    option.draw()
+                    option.hovered = False
+
+                    if option.rect.collidepoint(pygame.mouse.get_pos()):
+                        option.hovered = True
+
+                        for event in events:
+                            if event.type == pygame.MOUSEBUTTONUP:
+                                selected_option = dict[list_menu[i]]
+
+            if selected_option is not None:
+                selected = True
+            if img is not None:
+                self.window.blit(img, img_rect.bottomleft)
+
+            pygame.display.update()
+
+        return selected_option
+
+    def cycle_matches(self, n_matches = 10, mega_hardcore = False):
+        """"""
+        self.reset_game()
+        score = array('i')
+
+        for match in range(n_matches):
+            score.append(self.single_player(mega_hardcore))
+
+        return score
+
     def menu(self):
         """Main menu of the game.
 
@@ -344,63 +388,27 @@ class Game:
         """
         pygame.display.set_caption("SNAKE GAME  | PLAY NOW!")
 
-        img = pygame.image.load(resource_path("resources/images/snake_logo.png"))
-        img = pygame.transform.scale(img, (var.BOARD_SIZE * var.BLOCK_SIZE, int(var.BOARD_SIZE * var.BLOCK_SIZE / 3)))
-
+        img = pygame.image.load(resource_path("resources/images" +
+                                              "/snake_logo.png")).convert()
+        img = pygame.transform.scale(img, (var.BOARD_SIZE * var.BLOCK_SIZE,
+                                     int(var.BOARD_SIZE * var.BLOCK_SIZE / 3)))
         img_rect = img.get_rect()
         img_rect.center = self.screen_rect.center
-
+        list_menu = ['PLAY', 'BENCHMARK', 'LEADERBOARDS', 'QUIT']
         menu_options = [TextBlock(' PLAY GAME ', (self.screen_rect.centerx,
-                                                  4 * self.screen_rect.centery / 10),
-                                                  self.window, (1 / 12), "menu"),
+                                             4 * self.screen_rect.centery / 10),
+                                             self.window, (1 / 12), "menu"),
                         TextBlock(' BENCHMARK ', (self.screen_rect.centerx,
-                                                  6 * self.screen_rect.centery / 10),
-                                                  self.window, (1 / 12), "menu"),
+                                             6 * self.screen_rect.centery / 10),
+                                             self.window, (1 / 12), "menu"),
                         TextBlock(' LEADERBOARDS ', (self.screen_rect.centerx,
-                                                     8 * self.screen_rect.centery / 10),
-                                                     self.window, (1 / 12), "menu"),
+                                             8 * self.screen_rect.centery / 10),
+                                             self.window, (1 / 12), "menu"),
                         TextBlock(' QUIT ', (self.screen_rect.centerx,
                                              10 * self.screen_rect.centery / 10),
                                              self.window, (1 / 12), "menu")]
-        selected = False
-        selected_option = None
-
-        while not selected:
-            pygame.event.pump()
-            ev = pygame.event.get()
-
-            self.window.fill(pygame.Color(225, 225, 225))
-
-            for option in menu_options:
-                option.draw()
-
-                if option.rect.collidepoint(pygame.mouse.get_pos()):
-                    option.hovered = True
-
-                    if option == menu_options[0]:
-                        for event in ev:
-                            if event.type == pygame.MOUSEBUTTONUP:
-                                selected_option = options['PLAY']
-                    elif option == menu_options[1]:
-                        for event in ev:
-                            if event.type == pygame.MOUSEBUTTONUP:
-                                selected_option = options['BENCHMARK']
-                    elif option == menu_options[2]:
-                        for event in ev:
-                            if event.type == pygame.MOUSEBUTTONUP:
-                                selected_option = options['LEADERBOARDS']
-                    elif option == menu_options[3]:
-                        for event in ev:
-                            if event.type == pygame.MOUSEBUTTONUP:
-                                selected_option = options['QUIT']
-                else:
-                    option.hovered = False
-
-            if selected_option is not None:
-                selected = True
-
-            self.window.blit(img, img_rect.bottomleft)
-            pygame.display.update()
+        selected_option = self.cycle_menu(menu_options, list_menu, options,
+                                          img, img_rect)
 
         return selected_option
 
@@ -412,11 +420,11 @@ class Game:
 
             # Game starts in 3, 2, 1
             text = [TextBlock('Game starts in', (self.screen_rect.centerx,
-                                                 4 * self.screen_rect.centery / 10),
-                                                 self.window, (1 / 10), "text"),
+                                            4 * self.screen_rect.centery / 10),
+                                            self.window, (1 / 10), "text"),
                     TextBlock(time, (self.screen_rect.centerx,
-                                                 12 * self.screen_rect.centery / 10),
-                                                 self.window, (1 / 1.5), "text")]
+                                            12 * self.screen_rect.centery / 10),
+                                            self.window, (1 / 1.5), "text")]
 
             for text_block in text:
                 text_block.draw()
@@ -424,7 +432,6 @@ class Game:
             pygame.display.update()
             pygame.display.set_caption("SNAKE GAME  |  Game starts in "
                                        + time + " second(s) ...")
-
             pygame.time.wait(1000)
 
         logger.info('EVENT: GAME START')
@@ -440,19 +447,13 @@ class Game:
                 sys.exit()
             elif opt == options['PLAY']:
                 var.GAME_SPEED, mega_hardcore = self.select_speed()
-                self.reset_game()
-                self.start_match()
-                score = self.single_player(mega_hardcore)
+                score = self.cycle_matches(n_matches = 1,
+                                           mega_hardcore = mega_hardcore)
                 opt = self.over(score)
             elif opt == options['BENCHMARK']:
                 var.GAME_SPEED, mega_hardcore = self.select_speed()
-                score = array('i')
-
-                for i in range(var.BENCHMARK):
-                    self.reset_game()
-                    self.start_match()
-                    score.append(self.single_player(mega_hardcore))
-
+                score = self.cycle_matches(n_matches = var.BENCHMARK,
+                                           mega_hardcore = mega_hardcore)
                 opt = self.over(score)
             elif opt == options['LEADERBOARDS']:
                 pass
@@ -469,72 +470,33 @@ class Game:
         selected_option: int
             The selected option in the main loop.
         """
-        menu_options = [None] * 5
-        menu_options[0] = TextBlock(' PLAY AGAIN ', (self.screen_rect.centerx,
-                                                     4 * self.screen_rect.centery / 10),
-                                                     self.window, (1 / 15), "menu")
-        menu_options[1] = TextBlock(' GO TO MENU ', (self.screen_rect.centerx,
-                                                     6 * self.screen_rect.centery / 10),
-                                                     self.window, (1 / 15), "menu")
-        menu_options[3] = TextBlock(' QUIT ', (self.screen_rect.centerx,
-                                               10 * self.screen_rect.centery / 10),
-                                               self.window, (1 / 15), "menu")
+        score_option = None
 
-        if isinstance(score, int):
-            text_score = 'SCORE: ' + str(score)
-        else:
-            text_score = 'MEAN SCORE: ' + str(sum(score) / var.BENCHMARK)
-            menu_options[2] = TextBlock(' ADD TO LEADERBOARDS ', (self.screen_rect.centerx,
-                                                                  8 * self.screen_rect.centery / 10),
-                                                                  self.window, (1 / 15), "menu")
+        if len(score) == var.BENCHMARK:
+            score_option = TextBlock(' ADD TO LEADERBOARDS ',
+                                        (self.screen_rect.centerx,
+                                         8 * self.screen_rect.centery / 10),
+                                        self.window, (1 / 15), "menu")
 
+        text_score = 'SCORE: ' + str(np.mean(score))
+        list_menu = ['PLAY', 'MENU', 'ADD_LEADERBOARDS', 'QUIT']
+        menu_options = [TextBlock(' PLAY AGAIN ', (self.screen_rect.centerx,
+                                            4 * self.screen_rect.centery / 10),
+                                            self.window, (1 / 15), "menu"),
+                           TextBlock(' GO TO MENU ', (self.screen_rect.centerx,
+                                            6 * self.screen_rect.centery / 10),
+                                            self.window, (1 / 15), "menu"),
+                           score_option,
+                           TextBlock(' QUIT ', (self.screen_rect.centerx,
+                                            10 * self.screen_rect.centery / 10),
+                                            self.window, (1 / 15), "menu"),
+                           TextBlock(text_score, (self.screen_rect.centerx,
+                                             15 * self.screen_rect.centery / 10),
+                                             self.window, (1 / 10), "text")]
         pygame.display.set_caption("SNAKE GAME  | " + text_score
                                    + "  |  GAME OVER...")
         logger.info('EVENT: GAME OVER | FINAL ' + text_score)
-        menu_options[4] = TextBlock(text_score, (self.screen_rect.centerx,
-                                                 15 * self.screen_rect.centery / 10),
-                                                 self.window, (1 / 10), "text")
-        selected = False
-        selected_option = None
-
-        while not selected:
-            pygame.event.pump()
-            ev = pygame.event.get()
-
-            # Game over screen
-            self.window.fill(pygame.Color(225, 225, 225))
-
-            for option in menu_options:
-                if option is not None:
-                    option.draw()
-
-                    if option.rect.collidepoint(pygame.mouse.get_pos()):
-                        option.hovered = True
-
-                        if option == menu_options[0]:
-                            for event in ev:
-                                if event.type == pygame.MOUSEBUTTONUP:
-                                    selected_option = options['PLAY']
-                        elif option == menu_options[1]:
-                            for event in ev:
-                                if event.type == pygame.MOUSEBUTTONUP:
-                                    selected_option = options['MENU']
-                        elif option == menu_options[2]:
-                            for event in ev:
-                                if event.type == pygame.MOUSEBUTTONUP:
-                                    selected_option = options['ADD_LEADERBOARDS']
-                        elif option == menu_options[3]:
-                            for event in ev:
-                                if event.type == pygame.MOUSEBUTTONUP:
-                                    pygame.quit()
-                                    sys.exit()
-                    else:
-                        option.hovered = False
-
-            if selected_option is not None:
-                selected = True
-
-            pygame.display.update()
+        selected_option = self.cycle_menu(menu_options, list_menu, options)
 
         return selected_option
 
@@ -546,6 +508,7 @@ class Game:
         speed: int
             The selected speed in the main loop.
         """
+        list_menu = ['EASY', 'MEDIUM', 'HARD', 'MEGA_HARDCORE']
         menu_options = [TextBlock(levels[0], (self.screen_rect.centerx,
                                               4 * self.screen_rect.centery / 10),
                                               self.window, (1 / 10), "menu"),
@@ -558,49 +521,12 @@ class Game:
                         TextBlock(levels[3], (self.screen_rect.centerx,
                                               16 * self.screen_rect.centery / 10),
                                               self.window, (1 / 10), "menu")]
+
+        speed = self.cycle_menu(menu_options, list_menu, speeds)
         mega_hardcore = False
-        selected = False
-        speed = None
 
-        while not selected:
-            pygame.event.pump()
-            ev = pygame.event.get()
-
-            # Game over screen
-            self.window.fill(pygame.Color(225, 225, 225))
-
-            for option in menu_options:
-                if option is not None:
-                    option.draw()
-
-                    if option.rect.collidepoint(pygame.mouse.get_pos()):
-                        option.hovered = True
-
-                        if option == menu_options[0]:
-                            for event in ev:
-                                if event.type == pygame.MOUSEBUTTONUP:
-                                    speed = speeds['EASY']
-                        elif option == menu_options[1]:
-                            for event in ev:
-                                if event.type == pygame.MOUSEBUTTONUP:
-                                    speed = speeds['MEDIUM']
-                        elif option == menu_options[2]:
-                            for event in ev:
-                                if event.type == pygame.MOUSEBUTTONUP:
-                                    speed = speeds['HARD']
-                        elif option == menu_options[3]:
-                            for event in ev:
-                                if event.type == pygame.MOUSEBUTTONUP:
-                                    speed = speeds['MEDIUM']
-                                    mega_hardcore = True
-
-                    else:
-                        option.hovered = False
-
-            if speed is not None:
-                selected = True
-
-            pygame.display.update()
+        if speed == speeds['MEGA_HARDCORE']:
+            mega_hardcore = True
 
         return speed, mega_hardcore
 
