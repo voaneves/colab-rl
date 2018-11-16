@@ -1,9 +1,9 @@
 import numpy as np
-from random import sample, uniform
+from random import sample, uniform, random
 from array import array  # Efficient numeric arrays
 
-from utilities.sum_tree import *
-from utilities.policy import LinearSchedule
+from .utilities.sum_tree import *
+from .utilities.misc import LinearSchedule
 
 class ExperienceReplay:
     """The class that handles memory and experiences replay.
@@ -274,7 +274,7 @@ class PrioritizedExperienceReplay:
         res = array('i')
 
         for _ in range(batch_size):
-            mass = random.random() * self._it_sum.sum(0, self.exp_size() - 1)
+            mass = random() * self._it_sum.sum(0, self.exp_size() - 1)
             idx = self._it_sum.find_prefixsum_idx(mass)
             res.append(idx)
 
@@ -364,7 +364,7 @@ class PrioritizedExperienceReplay:
 
         it_capacity = 1
 
-        while it_capacity < memory_size:
+        while it_capacity < self.memory_size:
             it_capacity *= 2
 
         self._it_sum = SumSegmentTree(it_capacity)
