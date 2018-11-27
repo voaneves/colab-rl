@@ -102,11 +102,24 @@ class Agent:
         self.nb_frames = nb_frames
         self.board_size = board_size
         self.update_target_freq = update_target_freq
+        self.set_noise_list()
         self.clear_frames()
 
     def reset_memory(self):
         """Reset memory if necessary."""
         self.memory.reset_memory()
+
+    def set_noise_list(self):
+        """Set a list of noise variables if NoisyNet is involved."""
+        self.noise_list = []
+        for layer in self.model.layers:
+            if type(layer) in {NoisyDenseFG}:
+                self.noise_list.extend(layer.noise_list)
+
+    def sample_noise(self):
+        """Resample noise variables in NoisyNet."""
+        for noise in self.noise_list:
+            self.sess.run(noise.initializer)
 
     def get_game_data(self, game):
         """Create a list with 4 frames and append/pop them each frame.
@@ -125,6 +138,7 @@ class Agent:
             self.frames.pop(0)
 
         expanded_frames = np.expand_dims(self.frames, 0)
+        expanded_frames = np.transpose(expanded_frames, [0, 3, 2, 1])
 
         return expanded_frames
 
@@ -287,6 +301,7 @@ class Agent:
 
                     while not game.game_over:  # Main loop, until game_over
                         game.food_pos = game.generate_food()
+                        self.sample_noise()
                         action, value = q_policy.select_action(self.model,
                                                                S, epoch,
                                                                nb_actions)
@@ -401,14 +416,6 @@ class Agent:
                     action, value = q_policy.select_action(self.model, S, epoch, game.nb_actions)
                     game.play(action)
                     current_size = game.snake.length  # Update the body size
-
-                    game.draw(color_list)
-
-                    if current_size > previous_size:
-                        color_list = game.gradient([(42, 42, 42), (152, 152, 152)],
-                                                   game.snake.length)
-
-                        previous_size = current_size
 
                 if game.game_over:
                     history_size.append(current_size)

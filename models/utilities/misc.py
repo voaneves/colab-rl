@@ -3,7 +3,6 @@
 import numpy as np
 from argparse import ArgumentParser
 
-from keras import backend as K
 import tensorflow as tf
 
 __author__ = "Victor Neves"
@@ -78,21 +77,33 @@ def huber_loss(y_true, y_pred, clip_value):
 	if np.isinf(clip_value):
 		# Spacial case for infinity since Tensorflow does have problems
 		# if we compare `K.abs(x) < np.inf`.
-		return .5 * K.square(x)
+		return .5 * tf.square(x)
 
-	condition = K.abs(x) < clip_value
-	squared_loss = .5 * K.square(x)
-	linear_loss = clip_value * (K.abs(x) - .5 * clip_value)
-	if K.backend() == 'tensorflow':
-		if hasattr(tf, 'select'):
-			return tf.select(condition, squared_loss, linear_loss)  # condition, true, false
-		else:
-			return tf.where(condition, squared_loss, linear_loss)  # condition, true, false
-	elif K.backend() == 'theano':
-		from theano import tensor as T
-		return T.switch(condition, squared_loss, linear_loss)
+	condition = tf.abs(x) < clip_value
+	squared_loss = .5 * tf.square(x)
+	linear_loss = clip_value * (tf.abs(x) - .5 * clip_value)
+
+	if hasattr(tf, 'select'):
+		return tf.select(condition, squared_loss, linear_loss)  # condition, true, false
 	else:
-		raise RuntimeError('Unknown backend "{}".'.format(K.backend()))
+		return tf.where(condition, squared_loss, linear_loss)  # condition, true, false
 
 def clipped_error(y_true, y_pred):
-	return K.mean(huber_loss(y_true, y_pred, clip_value = 1.), axis = -1)
+	return tf.keras.backend.mean(huber_loss(y_true, y_pred, clip_value = 1.), axis = -1)
+
+def model_name(model_type, double, dueling, n_steps, per, noisy):
+    model_name = 'model_type'
+
+    if double:
+        model_name += '_double'
+    if dueling:
+        model_name += '_dueling'
+    if per:
+        model_name += '_per'
+    if noisy:
+        model_name += '_noisy'
+
+    model_name += '_' + str(n_steps) + 'steps'
+    model_name += '.h5'
+
+    return model_name
