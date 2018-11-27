@@ -5,12 +5,12 @@
 
 from os import path
 
-from keras.models import load_model
+from tensorflow.keras.models import load_model
 
 from game.snake import Game
 from models.dqn import Agent
 from models.utilities.noisy_dense import NoisyDenseFG
-from models.utilities.networks import create_model, create_noisy_model
+from models.utilities.networks import create_model
 from models.utilities.misc import HandleArguments, clipped_error
 
 VISUAL = False
@@ -23,7 +23,7 @@ PER = False
 BATCH_SIZE = 64
 NB_FRAMES = 4
 MEMORY_SIZE = -1
-NB_EPOCH_TEST = 1000
+NB_EPOCH_TEST = 10
 GAMMA = 0.95
 UPDATE_TARGET_FREQ = 500
 
