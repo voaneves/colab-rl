@@ -88,11 +88,13 @@ class Agent:
     n_steps: int, optional, default = 1
         Size of the rewards buffer, to use Multi-step returns.
     """
-    def __init__(self, model, target = None, memory_size = -1, nb_frames = 4,
-                 board_size = 10, per = False, update_target_freq = 0.001):
+    def __init__(self, model, sess, target = None, memory_size = -1, nb_frames = 4,
+                 board_size = 10, per = False, update_target_freq = 0.01):
         """Initialize the agent with given attributes."""
-        if per:
+        if per == 'per':
             self.memory = PrioritizedExperienceReplay(memory_size = memory_size)
+        elif per == 'per_naive':
+            self.memory = PrioritizedExperienceReplayNaive(memory_size = memory_size)
         else:
             self.memory = ExperienceReplay(memory_size = memory_size)
 
@@ -102,6 +104,7 @@ class Agent:
         self.nb_frames = nb_frames
         self.board_size = board_size
         self.update_target_freq = update_target_freq
+        self.sess = sess
         self.set_noise_list()
         self.clear_frames()
 
@@ -138,7 +141,7 @@ class Agent:
             self.frames.pop(0)
 
         expanded_frames = np.expand_dims(self.frames, 0)
-        expanded_frames = np.transpose(expanded_frames, [0, 3, 2, 1])
+        # expanded_frames = np.transpose(expanded_frames, [0, 3, 2, 1]) # NCHW to NHWC
 
         return expanded_frames
 
@@ -155,9 +158,9 @@ class Agent:
         model_weights = self.model.get_weights()
         target_weights = self.target.get_weights()
 
-        for i in range(len(W)):
+        for i in range(len(model_weights)):
             target_weights[i] = (self.update_target_freq * model_weights[i]
-                                 + ((1 - self.update_target_frequency)
+                                 + ((1 - self.update_target_freq)
                                     * target_weights[i]))
 
         self.target.set_weights(target_weights)
@@ -260,16 +263,7 @@ class Agent:
         history_loss = array('f')  # Holds all the losses
         history_reward = array('f')  # Holds all the rewards
 
-        # Select exploration policy. EpsGreedyQPolicy runs faster, but takes
-        # longer to converge. BoltzmannGumbelQPolicy is the slowest, but
-        # converge really fast (0.1 * nb_epoch used in EpsGreedyQPolicy).
-        # BoltzmannQPolicy is in the middle.
-        if policy == "BoltzmannQPolicy":
-            q_policy = BoltzmannQPolicy(temp[0], temp[1], nb_epoch * learning_rate)
-        elif policy == "BoltzmannGumbelQPolicy":
-            q_policy = BoltzmannGumbelQPolicy()
-        else:
-            q_policy = EpsGreedyQPolicy(eps[0], eps[1], nb_epoch * learning_rate)
+        q_policy = self.select_policy(policy)
 
         nb_actions = game.nb_actions
         win_count = 0
@@ -341,10 +335,10 @@ class Agent:
                         self.memory.beta = self.memory.schedule.value(epoch)
 
                     if self.target is not None:  # Update the target model
-                        if update_target_freq >= 1: # Hard updates
+                        if self.update_target_freq >= 1: # Hard updates
                             if epoch % self.update_target_freq == 0:
                                 self.update_target_model_hard()
-                        elif update_target_freq < 1.:  # Soft updates
+                        elif self.update_target_freq < 1.:  # Soft updates
                             self.transfer_weights()
 
                     history_size.append(game.snake.length)
@@ -372,12 +366,7 @@ class Agent:
         history_step = array('f')  # Holds all the steps
         history_reward = array('f')  # Holds all the rewards
 
-        if policy == "BoltzmannQPolicy":
-            q_policy = BoltzmannQPolicy(temp, temp, nb_epoch)
-        elif policy == "EpsGreedyQPolicy":
-            q_policy = EpsGreedyQPolicy(eps, eps, nb_epoch)
-        else:
-            q_policy = GreedyQPolicy()
+        q_policy = self.select_policy(policy)
 
         for epoch in range(nb_epoch):
             game.reset_game()
@@ -397,13 +386,16 @@ class Agent:
                     if elapsed >= 60:
                         elapsed = 0
                         S = self.get_game_data(game)
-                        action, value = q_policy.select_action(self.model, S, epoch, game.nb_actions)
+                        action, value = q_policy.select_action(self.model, S,
+                                                               epoch,
+                                                               game.nb_actions)
                         game.play(action)
                         current_size = game.snake.length  # Update the body size
 
                         if current_size > previous_size:
-                            color_list = game.gradient([(42, 42, 42), (152, 152, 152)],
-                                                       game.snake.length)
+                            color_list = game.gradient([(42, 42, 42), (152, 152,
+                                                                       152)],
+                                                       current_size)
 
                             previous_size = current_size
 
@@ -413,7 +405,8 @@ class Agent:
                     game.fps.tick(120)  # Limit FPS to 100
                 else:
                     S = self.get_game_data(game)
-                    action, value = q_policy.select_action(self.model, S, epoch, game.nb_actions)
+                    action, value = q_policy.select_action(self.model, S, epoch,
+                                                           game.nb_actions)
                     game.play(action)
                     current_size = game.snake.length  # Update the body size
 
@@ -435,3 +428,22 @@ class Agent:
         print("Mean rewards: {} | Biggest reward: {} | Smallest reward: {}"\
               .format(np.mean(history_reward), np.max(history_reward),
                       np.min(history_reward)))
+
+    @staticmethod
+    def select_policy(policy):
+        # Select exploration policy. EpsGreedyQPolicy runs faster, but takes
+        # longer to converge. BoltzmannGumbelQPolicy is the slowest, but
+        # converge really fast (0.1 * nb_epoch used in EpsGreedyQPolicy).
+        # BoltzmannQPolicy is in the middle.
+        if policy == 'BoltzmannQPolicy':
+            q_policy = BoltzmannQPolicy(temp[0], temp[1], nb_epoch
+                                                          * learning_rate)
+        elif policy == 'BoltzmannGumbelQPolicy':
+            q_policy = BoltzmannGumbelQPolicy()
+        elif policy == 'GreedyQPolicy':
+            q_policy = GreedyQPolicy()
+        else:
+            q_policy = EpsGreedyQPolicy(eps[0], eps[1], nb_epoch
+                                                        * learning_rate)
+
+        return q_policy
