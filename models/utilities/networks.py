@@ -1,3 +1,4 @@
+"""THIS"""
 #!/usr/bin/env python
 
 """ Needs update!
@@ -10,6 +11,8 @@ try:
     from keras.models import Sequential, load_model, Model
     from keras.layers import Conv2D, Dense, Flatten, MaxPooling2D, Flatten,\
                              Input, Lambda, Add
+    from keras import backend as K
+
     K.set_image_dim_ordering('th')
 except ImportError:
     from tensorflow.keras.optimizers import RMSprop, Nadam
@@ -18,7 +21,6 @@ except ImportError:
                                         Flatten, Input, Lambda, Add
 
 from .noisy_dense import NoisyDenseFG, NoisyDenseIG
-from .misc import clipped_error
 
 __author__ = "Victor Neves"
 __license__ = "MIT"
@@ -42,8 +44,8 @@ def select_optimizer(optimizer):
 def select_error(error):
     assert type(error) is str, "Should use string to select error."
 
-    if error == 'clipped_error':
-        error = clipped_error
+    if error == 'huber_loss':
+        error = tf.losses.huber_loss
 
     return error
 
