@@ -368,7 +368,8 @@ class Agent:
         history_step = array('f')  # Holds all the steps
         history_reward = array('f')  # Holds all the rewards
 
-        q_policy = self.select_policy(policy, eps, temp, nb_epoch, learning_rate = 0.5)
+        q_policy = self.select_policy(policy, eps, temp, nb_epoch,
+                                      learning_rate = 0.5)
 
         for epoch in range(nb_epoch):
             game.reset_game()
