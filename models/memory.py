@@ -1,5 +1,7 @@
+"""THIS"""
+
 import numpy as np
-from random import sample, uniform, random
+from random import sample, uniform
 from array import array  # Efficient numeric arrays
 
 from .utilities.sum_tree import *
@@ -121,8 +123,8 @@ class PrioritizedExperienceReplayNaive:
         per_alpha: how much prioritization to use.
         per_beta: importance sampling weights (IS_weights).
     """
-    def __init__(self, memory_size = 150000, alpha = 0.6, epsilon = 0.001,
-                 beta = 0.4, nb_epoch = 10000, decay = 0.5):
+    def __init__(self, memory_size = 150000, nb_epoch = 10000, epsilon = 0.001,
+                 alpha = 0.6, beta = 0.4, decay = 0.5):
         """Initialize parameters and the memory array."""
         self.memory_size = memory_size
         self.epsilon = epsilon
@@ -138,13 +140,6 @@ class PrioritizedExperienceReplayNaive:
     def get_priority(self, errors):
         """Returns priority based on how much prioritization to use."""
         return (errors + self.epsilon) ** self.alpha
-
-    def update(self, tree_indices, errors):
-        """Update a list of nodes, based on their errors."""
-        priorities = self.get_priority(errors)
-
-        for index, priority in zip(tree_indices, priorities):
-            self.memory.update(index, priority)
 
     def remember(self, s, a, r, s_prime, game_over):
         """Remember SARS' experiences, with the game_over parameter (done)."""
@@ -227,6 +222,13 @@ class PrioritizedExperienceReplayNaive:
 
         return S, targets, IS_weights
 
+    def update_priorities(self, tree_indices, errors):
+        """Update a list of nodes, based on their errors."""
+        priorities = self.get_priority(errors)
+
+        for index, priority in zip(tree_indices, priorities):
+            self.memory.update(index, priority)
+            
     def reset_memory(self):
         """Set the memory as a blank list."""
         if self.memory_size <= 100:
@@ -240,8 +242,8 @@ class PrioritizedExperienceReplay:
     def __init__(self, memory_size, nb_epoch = 10000, epsilon = 0.001,
                  alpha = 0.6, beta = 0.4, decay = 0.5):
         self.memory_size = memory_size
-        self.alpha = alpha
         self.epsilon = epsilon
+        self.alpha = alpha
         self.beta = beta
         self.schedule = LinearSchedule(nb_epoch * decay, 1.0, beta)
         self.max_priority = 1.0
@@ -250,6 +252,10 @@ class PrioritizedExperienceReplay:
     def exp_size(self):
         """Returns how much memory is stored."""
         return len(self.memory)
+
+    def get_priority(self, errors):
+        """Returns priority based on how much prioritization to use."""
+        return (errors + self.epsilon) ** self.alpha
 
     def remember(self, s, a, r, s_prime, game_over):
         if not hasattr(self, 'input_shape'):
@@ -267,22 +273,18 @@ class PrioritizedExperienceReplay:
             self.memory[self.pos] = experience
             self.pos = (self.pos + 1) % self.memory_size
 
-        self._it_sum[self.pos] = self.max_priority ** self.alpha
-        self._it_min[self.pos] = self.max_priority ** self.alpha
+        self._it_sum[self.pos] = self.get_priority(self.max_priority)
+        self._it_min[self.pos] = self.get_priority(self.max_priority)
 
     def _sample_proportional(self, batch_size):
         res = array('i')
 
         for _ in range(batch_size):
-            mass = random() * self._it_sum.sum(0, self.exp_size() - 1)
+            mass = random.random() * self._it_sum.sum(0, self.exp_size() - 1)
             idx = self._it_sum.find_prefixsum_idx(mass)
             res.append(idx)
 
         return res
-
-    def get_priority(self, errors):
-        """Returns priority based on how much prioritization to use."""
-        return (errors + self.epsilon) ** self.alpha
 
     def get_samples(self, batch_size):
         idxes = self._sample_proportional(batch_size)
