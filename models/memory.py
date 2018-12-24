@@ -228,7 +228,7 @@ class PrioritizedExperienceReplayNaive:
 
         for index, priority in zip(tree_indices, priorities):
             self.memory.update(index, priority)
-            
+
     def reset_memory(self):
         """Set the memory as a blank list."""
         if self.memory_size <= 100:
