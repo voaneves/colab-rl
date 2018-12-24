@@ -86,7 +86,7 @@ def create_model(optimizer, loss, stack, input_size, output_size,
                  dueling = False, cnn = "CNN3", dense_type = "dense"):
     optimizer = select_optimizer(optimizer)
     loss = select_error(loss)
-    inputs = Input(shape = (input_size, input_size, stack))
+    inputs = Input(shape = (stack, input_size, input_size))
     net = create_cnn(cnn, inputs)
 
     if dueling:

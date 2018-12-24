@@ -91,7 +91,7 @@ def main():
         script_dir = path.dirname(__file__) # Absolute dir the script is in
         abs_file_path = path.join(script_dir, self.args.load)
 
-        model = create_model(optimizer = RMSprop(), loss = clipped_error,
+        model = create_model(optimizer = RMSprop(), loss = huber_loss,
                             stack = nb_frames, input_size = board_size,
                             output_size = game.nb_actions)
         sess.run(tf.global_variables_initializer())
@@ -100,7 +100,7 @@ def main():
                            custom_objects = {'huber_loss': tf.losses.huber_loss,
                                              'NoisyDenseFG': NoisyDenseFG,
                                              'NoisyDenseIG': NoisyDenseIG})
-        model.set_weights(function.get_weights())                                     
+        model.set_weights(function.get_weights())
 
         agent = Agent(model = model, sess = None, target = target, memory_size = memory_size,
                       nb_frames = nb_frames, board_size = board_size,

@@ -51,8 +51,10 @@ from array import array
 import random
 
 import pygame
+
 from .utilities.policy import GreedyQPolicy, EpsGreedyQPolicy, BoltzmannQPolicy,\
                              BoltzmannGumbelQPolicy
+from .utilities.noisy_dense import NoisyDenseFG, NoisyDenseIG
 from .memory import ExperienceReplay, PrioritizedExperienceReplay
 
 __author__ = "Victor Neves"
@@ -263,7 +265,7 @@ class Agent:
         history_loss = array('f')  # Holds all the losses
         history_reward = array('f')  # Holds all the rewards
 
-        q_policy = self.select_policy(policy)
+        q_policy = self.select_policy(policy, eps, temp, nb_epoch, learning_rate)
 
         nb_actions = game.nb_actions
         win_count = 0
@@ -366,7 +368,7 @@ class Agent:
         history_step = array('f')  # Holds all the steps
         history_reward = array('f')  # Holds all the rewards
 
-        q_policy = self.select_policy(policy)
+        q_policy = self.select_policy(policy, eps, temp, nb_epoch, learning_rate = 0.5)
 
         for epoch in range(nb_epoch):
             game.reset_game()
@@ -430,7 +432,7 @@ class Agent:
                       np.min(history_reward)))
 
     @staticmethod
-    def select_policy(policy):
+    def select_policy(policy, eps, temp, nb_epoch, learning_rate):
         # Select exploration policy. EpsGreedyQPolicy runs faster, but takes
         # longer to converge. BoltzmannGumbelQPolicy is the slowest, but
         # converge really fast (0.1 * nb_epoch used in EpsGreedyQPolicy).
