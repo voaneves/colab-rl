@@ -6,6 +6,7 @@
 from os import path
 
 import tensorflow as tf
+
 try:
     from keras.models import load_model
 except ImportError:
@@ -15,6 +16,7 @@ from game.snake import Game
 from models.dqn import Agent
 from models.utilities.networks import create_model
 from models.utilities.misc import HandleArguments, model_name
+from models.utilities.noisy_dense import NoisyDenseFG, NoisyDenseIG
 
 RELATIVE_POS = False
 TIMEIT_TRAIN = False
@@ -72,7 +74,7 @@ def main():
                                       dense_type = dense_type)
 
             sess.run(tf.global_variables_initializer())
-            agent = Agent(model = model, target = target, memory_size = memory_size,
+            agent = Agent(model = model, sess = sess, target = target, memory_size = memory_size,
                           nb_frames = nb_frames, board_size = board_size,
                           per = per, update_target_freq = update_target_freq)
             agent.train(game, batch_size = BATCH_SIZE, nb_epoch = NB_EPOCH,
@@ -88,9 +90,19 @@ def main():
 
         script_dir = path.dirname(__file__) # Absolute dir the script is in
         abs_file_path = path.join(script_dir, self.args.load)
-        model = load_model(abs_file_path)
 
-        agent = Agent(model = model, target = target, memory_size = memory_size,
+        model = create_model(optimizer = RMSprop(), loss = clipped_error,
+                            stack = nb_frames, input_size = board_size,
+                            output_size = game.nb_actions)
+        sess.run(tf.global_variables_initializer())
+
+        function = load_model(abs_file_path,
+                           custom_objects = {'huber_loss': tf.losses.huber_loss,
+                                             'NoisyDenseFG': NoisyDenseFG,
+                                             'NoisyDenseIG': NoisyDenseIG})
+        model.set_weights(function.get_weights())                                     
+
+        agent = Agent(model = model, sess = None, target = target, memory_size = memory_size,
                       nb_frames = nb_frames, board_size = board_size,
                       per = per, update_target_freq = update_target_freq)
 
