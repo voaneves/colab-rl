@@ -8,6 +8,7 @@ from array import array  # Efficient numeric arrays
 from os import environ, path  # To center the game window the best possible
 import random  # Random numbers used for the food
 import logging  # Logging function for movements and errors
+import json # For file handling (leaderboards)
 from itertools import tee  # For the color gradient on snake
 
 import pygame  # This is the engine used in the game
@@ -26,7 +27,7 @@ OPTIONS = {'QUIT': 0,
            'BENCHMARK': 2,
            'LEADERBOARDS': 3,
            'MENU': 4,
-           'ADD_LEADERBOARDS': 5}
+           'ADD_TO_LEADERBOARDS': 5}
 RELATIVE_ACTIONS = {'LEFT': 0,
                     'FORWARD': 1,
                     'RIGHT': 2}
@@ -467,9 +468,8 @@ class Game:
     def start(self):
         """Use menu to select the option/game mode."""
         opt = self.menu()
-        running = True
 
-        while running:
+        while True:
             if opt == OPTIONS['QUIT']:
                 pygame.quit()
                 sys.exit()
@@ -484,11 +484,12 @@ class Game:
                                            mega_hardcore = mega_hardcore)
                 opt = self.over(score)
             elif opt == OPTIONS['LEADERBOARDS']:
-                pass
-            elif opt == OPTIONS['ADD_LEADERBOARDS']:
-                pass
+                self.view_leaderboards()
             elif opt == OPTIONS['MENU']:
                 opt = self.menu()
+            if opt == OPTIONS['ADD_TO_LEADERBOARDS']:
+                self.add_to_leaderboards(score, None) # Gotta improve this logic.
+                self.view_leaderboards()
 
     def over(self, score):
         """If collision with wall or body, end the game and open options.
@@ -507,7 +508,7 @@ class Game:
                                      self.window, (1 / 15), "menu")
 
         text_score = 'SCORE: ' + str(int(np.mean(score)))
-        list_menu = ['PLAY', 'MENU', 'ADD_LEADERBOARDS', 'QUIT']
+        list_menu = ['PLAY', 'MENU', 'ADD_TO_LEADERBOARDS', 'QUIT']
         menu_options = [TextBlock(' PLAY AGAIN ', (self.screen_rect.centerx,
                                                    4 * self.screen_rect.centery / 10),
                                   self.window, (1 / 15), "menu"),
@@ -686,28 +687,6 @@ class Game:
 
         return action
 
-    @staticmethod
-    def eval_local_safety(canvas, body):
-        """Evaluate the safety of the head's possible next movements.
-
-        Return
-        ----------
-        canvas: np.array of size board_size**2
-            After using game expertise, change canvas values to DANGEROUS if true.
-        """
-        if ((body[0][0] + 1) > (VAR.board_size - 1)
-            or ([body[0][0] + 1, body[0][1]]) in body[1:]):
-            canvas[VAR.board_size - 1, 0] = POINT_TYPE['DANGEROUS']
-        if (body[0][0] - 1) < 0 or ([body[0][0] - 1, body[0][1]]) in body[1:]:
-            canvas[VAR.board_size - 1, 1] = POINT_TYPE['DANGEROUS']
-        if (body[0][1] - 1) < 0 or ([body[0][0], body[0][1] - 1]) in body[1:]:
-            canvas[VAR.board_size - 1, 2] = POINT_TYPE['DANGEROUS']
-        if ((body[0][1] + 1) > (VAR.board_size - 1)
-            or ([body[0][0], body[0][1] + 1]) in body[1:]):
-            canvas[VAR.board_size - 1, 3] = POINT_TYPE['DANGEROUS']
-
-        return canvas
-
     def state(self):
         """Create a matrix of the current state of the game.
 
@@ -802,6 +781,92 @@ class Game:
 
         return reward
 
+    def draw(self, color_list):
+        """Draw the game, the snake and the food using pygame."""
+        self.window.fill(pygame.Color(225, 225, 225))
+
+        for part, color in zip(self.snake.body, color_list):
+            pygame.draw.rect(self.window, color, pygame.Rect((part[0] *
+                        VAR.block_size), part[1] * VAR.block_size,
+                        VAR.block_size, VAR.block_size))
+
+        pygame.draw.rect(self.window, VAR.food_color,
+                         pygame.Rect(self.food_pos[0] * VAR.block_size,
+                         self.food_pos[1] * VAR.block_size, VAR.block_size,
+                         VAR.block_size))
+
+        pygame.display.set_caption("SNAKE GAME  |  Score: "
+                                   + str(self.snake.length - 3))
+
+    def get_name(self):
+        """See test.py in my desktop, for a textbox input in pygame"""
+        return None
+
+    def add_to_leaderboards(self, score, step):
+        file_path = resource_path("resources/scores.json")
+
+        name = self.get_name()
+        new_score = {'name': 'test',
+                     'ranking_data': {'score': score,
+                                      'step': step}}
+
+        with open(file_path, 'w') as leaderboards_file:
+            json.dump(new_score, leaderboards_file)
+
+    def view_leaderboards(self):
+        list_menu = ['MENU']
+        menu_options = [TextBlock('LEADERBOARDS',
+                                  (self.screen_rect.centerx,
+                                   2 * self.screen_rect.centery / 10),
+                                  self.window, (1 / 12), "text")]
+
+        file_path = resource_path("resources/scores.json")
+
+        with open(file_path, 'r') as leaderboards_file:
+            scores_data = json.loads(leaderboards_file.read())
+
+        scores_data.sort(key = operator.itemgetter('score'))
+
+#        for score in formatted_scores:
+#            menu_options.append(TextBlock(person_ranked,
+#                                (self.screen_rect.centerx,
+#                                10 * self.screen_rect.centery / 10),
+#                                self.window, (1 / 12), "text"))
+
+        menu_options.append(TextBlock('MENU',
+                            (self.screen_rect.centerx,
+                            10 * self.screen_rect.centery / 10),
+                            self.window, (1 / 12), "menu"))
+        selected_option = self.cycle_menu(menu_options, list_menu, OPTIONS)
+
+    @staticmethod
+    def format_scores(scores, ammount):
+        scores = scores[-ammount:]
+
+
+
+    @staticmethod
+    def eval_local_safety(canvas, body):
+        """Evaluate the safety of the head's possible next movements.
+
+        Return
+        ----------
+        canvas: np.array of size board_size**2
+            After using game expertise, change canvas values to DANGEROUS if true.
+        """
+        if ((body[0][0] + 1) > (VAR.board_size - 1)
+            or ([body[0][0] + 1, body[0][1]]) in body[1:]):
+            canvas[VAR.board_size - 1, 0] = POINT_TYPE['DANGEROUS']
+        if (body[0][0] - 1) < 0 or ([body[0][0] - 1, body[0][1]]) in body[1:]:
+            canvas[VAR.board_size - 1, 1] = POINT_TYPE['DANGEROUS']
+        if (body[0][1] - 1) < 0 or ([body[0][0], body[0][1] - 1]) in body[1:]:
+            canvas[VAR.board_size - 1, 2] = POINT_TYPE['DANGEROUS']
+        if ((body[0][1] + 1) > (VAR.board_size - 1)
+            or ([body[0][0], body[0][1] + 1]) in body[1:]):
+            canvas[VAR.board_size - 1, 3] = POINT_TYPE['DANGEROUS']
+
+        return canvas
+
     @staticmethod
     def gradient(colors, steps, components = 3):
         """Function to create RGB gradients given 2 colors and steps. If
@@ -837,22 +902,6 @@ class Game:
 
         return result
 
-    def draw(self, color_list):
-        """Draw the game, the snake and the food using pygame."""
-        self.window.fill(pygame.Color(225, 225, 225))
-
-        for part, color in zip(self.snake.body, color_list):
-            pygame.draw.rect(self.window, color, pygame.Rect((part[0] *
-                        VAR.block_size), part[1] * VAR.block_size,
-                        VAR.block_size, VAR.block_size))
-
-        pygame.draw.rect(self.window, VAR.food_color,
-                         pygame.Rect(self.food_pos[0] * VAR.block_size,
-                         self.food_pos[1] * VAR.block_size, VAR.block_size,
-                         VAR.block_size))
-
-        pygame.display.set_caption("SNAKE GAME  |  Score: "
-                                   + str(self.snake.length - 3))
 
 def resource_path(relative_path):
     """Function to return absolute paths. Used while creating .exe file."""
