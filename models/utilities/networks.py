@@ -9,16 +9,14 @@ import tensorflow as tf
 try:
     from keras.optimizers import RMSprop, Nadam
     from keras.models import Sequential, load_model, Model
-    from keras.layers import Conv2D, Dense, Flatten, MaxPooling2D, Flatten,\
-                             Input, Lambda, Add
+    from keras.layers import *
     from keras import backend as K
 
     K.set_image_dim_ordering('th')
 except ImportError:
     from tensorflow.keras.optimizers import RMSprop, Nadam
     from tensorflow.keras.models import Sequential, load_model, Model
-    from tensorflow.keras.layers import Conv2D, Dense, Flatten, MaxPooling2D,\
-                                        Flatten, Input, Lambda, Add
+    from tensorflow.keras.layers import *
 
 from .noisy_dense import NoisyDenseFG, NoisyDenseIG
 
@@ -30,16 +28,6 @@ __email__ = "victorneves478@gmail.com"
 DENSES = {'dense': Dense,
           'noisy_dense_fg': NoisyDenseFG,
           'noisy_dense_ig': NoisyDenseIG}
-
-def select_optimizer(optimizer):
-    assert optimizer in {'Nadam', 'RMSprop'}, "Optimizer should be RMSprop or Nadam."
-
-    if optimizer == 'Nadam':
-        optimizer = Nadam()
-    else:
-        optimizer = RMSprop()
-
-    return optimizer
 
 def select_error(error):
     assert type(error) is str, "Should use string to select error."
@@ -84,7 +72,6 @@ def create_cnn(cnn, inputs):
 
 def create_model(optimizer, loss, stack, input_size, output_size,
                  dueling = False, cnn = "CNN3", dense_type = "dense"):
-    optimizer = select_optimizer(optimizer)
     loss = select_error(loss)
     inputs = Input(shape = (stack, input_size, input_size))
     net = create_cnn(cnn, inputs)
@@ -108,3 +95,42 @@ def create_model(optimizer, loss, stack, input_size, output_size,
     model.compile(optimizer = optimizer, loss = loss)
 
     return model
+
+
+class Networks(object):
+
+    @staticmethod
+    def actor_network(input_shape, action_size, learning_rate):
+        """Actor Network for A2C
+        """
+
+        model = Sequential()
+        model.add(Conv2D(32, (4, 4), input_shape=(input_shape), activation = 'relu'))
+        model.add(Conv2D(64, (2, 2), activation = 'relu'))
+        model.add(Conv2D(64, (2, 2), activation = 'relu'))
+        model.add(Flatten())
+        model.add(Dense(3136, activation = 'relu'))
+        model.add(Dense(action_size))
+
+        optimizer = RMSprop()
+        model.compile(loss = tf.losses.huber_loss, optimizer = optimizer)
+
+        return model
+
+    @staticmethod
+    def critic_network(input_shape, value_size, learning_rate):
+        """Critic Network for A2C
+        """
+
+        model = Sequential()
+        model.add(Conv2D(32, (4, 4), input_shape=(input_shape), activation = 'relu'))
+        model.add(Conv2D(64, (2, 2), activation = 'relu'))
+        model.add(Conv2D(64, (2, 2), activation = 'relu'))
+        model.add(Flatten())
+        model.add(Dense(3136, activation = 'relu'))
+        model.add(Dense(value_size, activation = 'linear'))
+
+        optimizer = RMSprop()
+        model.compile(loss = tf.losses.huber_loss, optimizer = optimizer)
+
+        return model

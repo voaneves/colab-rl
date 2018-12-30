@@ -7,11 +7,11 @@ import tensorflow as tf
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.layers import base
 from tensorflow.python.ops.init_ops import Constant
+from keras.layers import Dense
 
-import keras
 
-class NoisyDense(keras.layers.Dense):
-
+class NoisyDense(Dense):
+    """From spring01's drlbox repo."""
     def build(self, input_shape):
         input_shape = tensor_shape.TensorShape(input_shape)
         if input_shape[-1].value is None:
