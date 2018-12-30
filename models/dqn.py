@@ -107,8 +107,8 @@ class Agent:
         self.board_size = board_size
         self.update_target_freq = update_target_freq
         self.sess = sess
-        self.set_noise_list()
         self.clear_frames()
+        self.set_noise_list()
 
     def reset_memory(self):
         """Reset memory if necessary."""
@@ -117,8 +117,9 @@ class Agent:
     def set_noise_list(self):
         """Set a list of noise variables if NoisyNet is involved."""
         self.noise_list = []
+
         for layer in self.model.layers:
-            if type(layer) in {NoisyDenseFG}:
+            if type(layer) in {NoisyDenseFG, NoisyDenseIG}:
                 self.noise_list.extend(layer.noise_list)
 
     def sample_noise(self):
@@ -288,7 +289,7 @@ class Agent:
                 for epoch in range(nb_epoch):
                     loss = 0.
                     total_reward = 0.
-                    game.reset_game()
+                    game.reset()
                     self.clear_frames()
                     S = self.get_game_data(game)
 
@@ -344,7 +345,7 @@ class Agent:
                             self.transfer_weights()
 
                     history_size.append(game.snake.length)
-                    history_step.append(game.step)
+                    history_step.append(game.steps)
                     history_loss.append(loss)
                     history_reward.append(total_reward)
 
@@ -372,7 +373,7 @@ class Agent:
                                       learning_rate = 0.5)
 
         for epoch in range(nb_epoch):
-            game.reset_game()
+            game.reset()
             self.clear_frames()
 
             if visual:
@@ -415,7 +416,7 @@ class Agent:
 
                 if game.game_over:
                     history_size.append(current_size)
-                    history_step.append(game.step)
+                    history_step.append(game.steps)
                     history_reward.append(game.get_reward())
 
             if game.is_won():
