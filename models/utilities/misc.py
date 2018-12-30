@@ -57,7 +57,6 @@ class HandleArguments:
             self.parser = ArgumentParser()
             self.parser.add_argument("-load", help = "load a previously trained model. the argument is the filename", required = False, default = "", type = str)
             self.parser.add_argument("-cnn_model", help = "choose the cnn model used", required = False, default = "CNN3", type = str)
-            self.parser.add_argument("-optimizer", help = "choose the optimizer for the cnn model", required = False, default = "RMSprop", type = str)
             self.parser.add_argument("-error", help = "choose the loss function for the cnn model", required = False, default = "huber_loss", type = str)
             self.parser.add_argument("--visual", help = "define board size", required = False, action = 'store_true')
             self.parser.add_argument("--dueling", help = "use dueling DQN", required = False, action = 'store_true')
