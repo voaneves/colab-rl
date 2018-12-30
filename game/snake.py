@@ -336,16 +336,21 @@ class Game:
             else:
                 self.nb_actions = 5
 
-            self.reset_game()
+            self.reset()
 
-    def reset_game(self):
+        self.action_space = self.nb_actions
+        self.observation_space = np.empty(shape = (board_size ** 2,))
+
+    def reset(self):
         """Reset the game environment."""
-        self.step = 0
+        self.steps = 0
         self.snake = Snake()
         self.food_generator = FoodGenerator(self.snake.body)
         self.food_pos = self.food_generator.pos
         self.scored = False
         self.game_over = False
+
+        return self.state()
 
     def create_window(self):
         """Create a pygame display with board_size * block_size dimension."""
@@ -396,7 +401,7 @@ class Game:
         score = array('i')
 
         for _ in range(n_matches):
-            self.reset_game()
+            self.reset()
             self.start_match(wait = 3)
             score.append(self.single_player(mega_hardcore))
 
@@ -748,7 +753,7 @@ class Game:
     def play(self, action):
         """Move the snake to the direction, eat and check collision."""
         self.scored = False
-        self.step += 1
+        self.steps += 1
         self.food_pos = self.generate_food()
 
         if self.relative_pos:
@@ -761,8 +766,13 @@ class Game:
         if self.player == "HUMAN":
             if self.check_collision():
                 self.game_over = True
-        elif self.check_collision() or self.step > 50 * self.snake.length:
+        elif self.check_collision() or self.steps > 50 * self.snake.length:
             self.game_over = True
+
+    def step(self, action):
+        self.play(action)
+
+        return self.state(), self.get_reward(), self.game_over, None
 
     def get_reward(self):
         """Return the current reward. Can be used as the reward function.
