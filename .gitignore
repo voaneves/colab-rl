@@ -11,3 +11,4 @@ game/snake_test.py
 models/not_working/acer.py
 models/not_working/pcl.py
 models/keras_model.h5
+game/snake
