@@ -25,12 +25,13 @@ PER = False
 BATCH_SIZE = 64
 NB_FRAMES = 4
 MEMORY_SIZE = -1
-NB_EPOCH_TEST = 10
+NB_EPOCH_TEST = 100
 GAMMA = 0.95
 UPDATE_TARGET_FREQ = 500
 NB_FRAMES = 4
 BOARD_SIZE = 10
 LOSS = 'huber_loss'
+DUELING = True
 
 def main():
     script_dir = path.dirname(__file__) # Absolute dir the script is in
@@ -51,11 +52,14 @@ def main():
                              loss = 'huber_loss',
                              stack = NB_FRAMES,
                              input_size = BOARD_SIZE,
-                             output_size = game.nb_actions)
+                             output_size = game.nb_actions,
+                             dueling = DUELING)
         sess.run(tf.global_variables_initializer())
         function = load_model(abs_file_path,
                               custom_objects = {'huber_loss': tf.losses.huber_loss,
-                                                'NoisyDenseFG': NoisyDenseFG})
+                                                'NoisyDenseFG': NoisyDenseFG,
+                                                'NoisyDenseIG': NoisyDenseIG,
+                                                'tf': tf})
         model.set_weights(function.get_weights())
         target = None
 

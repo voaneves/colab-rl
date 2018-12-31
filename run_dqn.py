@@ -124,7 +124,8 @@ def main():
         function = load_model(abs_file_path,
                            custom_objects = {'huber_loss': tf.losses.huber_loss,
                                              'NoisyDenseFG': NoisyDenseFG,
-                                             'NoisyDenseIG': NoisyDenseIG})
+                                             'NoisyDenseIG': NoisyDenseIG,
+                                             'tf': tf})
         model.set_weights(function.get_weights())
 
         agent = Agent(model = model,
