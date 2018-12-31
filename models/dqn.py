@@ -50,8 +50,6 @@ import numpy as np
 from array import array
 import random
 
-import pygame
-
 from .utilities.policy import (GreedyQPolicy,
                                EpsGreedyQPolicy,
                                BoltzmannQPolicy,
@@ -377,46 +375,18 @@ class Agent:
             game.reset()
             self.clear_frames()
 
-            if visual:
-                game.create_window()
-                previous_size = game.snake.length  # Initial size of the snake
-                color_list = game.gradient([(42, 42, 42), (152, 152, 152)],\
-                                               previous_size)
-                elapsed = 0
-
             while not game.game_over:
+                S = self.get_game_data(game)
+                action, value = q_policy.select_action(self.model, S,
+                                                       epoch,
+                                                       game.nb_actions)
+                game.play(action)
+
                 if visual:
-                    elapsed += game.fps.get_time()  # Get elapsed time since last call.
-
-                    if elapsed >= 60:
-                        elapsed = 0
-                        S = self.get_game_data(game)
-                        action, value = q_policy.select_action(self.model, S,
-                                                               epoch,
-                                                               game.nb_actions)
-                        game.play(action)
-                        current_size = game.snake.length  # Update the body size
-
-                        if current_size > previous_size:
-                            color_list = game.gradient([(42, 42, 42), (152, 152,
-                                                                       152)],
-                                                       current_size)
-
-                            previous_size = current_size
-
-                        game.draw(color_list)
-
-                    pygame.display.update()
-                    game.fps.tick(120)  # Limit FPS to 100
-                else:
-                    S = self.get_game_data(game)
-                    action, value = q_policy.select_action(self.model, S, epoch,
-                                                           game.nb_actions)
-                    game.play(action)
-                    current_size = game.snake.length  # Update the body size
+                    game.render()
 
                 if game.game_over:
-                    history_size.append(current_size)
+                    history_size.append(game.snake.length)
                     history_step.append(game.steps)
                     history_reward.append(game.get_reward())
 
