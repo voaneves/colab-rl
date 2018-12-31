@@ -1,0 +1,3 @@
+[submodule "game/snake"]
+	path = game/snake
+	url = https://github.com/Neves4/snake-on-pygame

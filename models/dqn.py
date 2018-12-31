@@ -52,8 +52,10 @@ import random
 
 import pygame
 
-from .utilities.policy import GreedyQPolicy, EpsGreedyQPolicy, BoltzmannQPolicy,\
-                             BoltzmannGumbelQPolicy
+from .utilities.policy import (GreedyQPolicy,
+                               EpsGreedyQPolicy,
+                               BoltzmannQPolicy,
+                               BoltzmannGumbelQPolicy)
 from .utilities.noisy_dense import NoisyDenseFG, NoisyDenseIG
 from .memory import ExperienceReplay, PrioritizedExperienceReplay
 
@@ -267,7 +269,6 @@ class Agent:
         history_reward = array('f')  # Holds all the rewards
 
         q_policy = self.select_policy(policy, eps, temp, nb_epoch, learning_rate)
-
         nb_actions = game.nb_actions
         win_count = 0
 
