@@ -10,7 +10,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/voaneves/colab-rl">
-    <img src="image/colab-rl-logo.png" alt="Logo">
+    <img src="image/colab-rl-logo.png" alt="Logo" width="130px" height="80px">
   </a>
   <h3 align="center">colab-rl</h3>
   <p align="center">
