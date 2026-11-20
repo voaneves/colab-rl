@@ -101,6 +101,6 @@ This project is licensed under the  [MIT License](/LICENSE).
 [issues-shield]: https://img.shields.io/github/issues/voaneves/colab-rl.svg?style=for-the-badge
 [issues-url]: https://github.com/voaneves/colab-rl/issues
 [license-shield]: https://img.shields.io/github/license/voaneves/colab-rl.svg?style=for-the-badge
-[license-url]: https://github.com/voaneves/colab-rl/blob/master/LICENSE.txt
+[license-url]: https://github.com/voaneves/colab-rl/blob/master/LICENSE
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/voaneves
