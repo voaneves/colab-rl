@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="colab-rl logo">
+  <path fill="#0a0a0a" d="M256 8a248 248 0 0 0 0 496Z"/>
+  <path fill="#f4ead4" d="M256 8a248 248 0 0 1 0 496Z"/>
+  <circle cx="256" cy="256" r="248" fill="none" stroke="#e8dec5" stroke-width="16"/>
+  <defs>
+    <clipPath id="vn-l"><rect x="0" y="0" width="256" height="512"/></clipPath>
+    <clipPath id="vn-r"><rect x="256" y="0" width="256" height="512"/></clipPath>
+  </defs>
+  <g clip-path="url(#vn-l)">
+    <path fill="none" stroke="#f4ead4" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" d="M157.3 220.1A105 105 0 0 1 351.2 211.6 M363.0 173.0L351.2 211.6L314.0 195.8 M354.7 291.9A105 105 0 0 1 160.8 300.4 M149.0 339.0L160.8 300.4L198.0 316.2"/>
+  </g>
+  <g clip-path="url(#vn-r)">
+    <path fill="none" stroke="#0a0a0a" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" d="M157.3 220.1A105 105 0 0 1 351.2 211.6 M363.0 173.0L351.2 211.6L314.0 195.8 M354.7 291.9A105 105 0 0 1 160.8 300.4 M149.0 339.0L160.8 300.4L198.0 316.2"/>
+  </g>
+  <circle cx="256" cy="256" r="28" fill="#d70000"/>
+</svg>

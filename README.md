@@ -2,7 +2,11 @@
 
 <div align="center">
 
-<img alt="colab-rl logo: two interlocked orange rings" src="https://raw.githubusercontent.com/voaneves/colab-rl/master/image/colab-rl-logo.png" width="130" height="80" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/voaneves/colab-rl/master/assets/logo/logo-dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/voaneves/colab-rl/master/assets/logo/logo-light.svg" />
+  <img alt="colab-rl logo: two circular arrows forming a feedback loop, with a red dot for the reward" src="https://raw.githubusercontent.com/voaneves/colab-rl/master/assets/logo/logo-light.svg" width="112" height="112" />
+</picture>
 
 <h1>colab-rl</h1>
 
