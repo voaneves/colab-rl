@@ -1,0 +1,56 @@
+{
+  "repo": "colab-rl",
+  "branch": "master",
+  "lang": "en",
+  "license": "MIT",
+  "name": "colab-rl",
+  "tagline": "Keras reinforcement learning agents you can train in Google Colab, starting with DQN.",
+  "description": "Keras implementation of a DQN agent with prioritized replay and noisy layers, plus notebooks ready for Google Colab.",
+  "logo": {
+    "existing": "image/colab-rl-logo.png",
+    "width": 130,
+    "height": 80
+  },
+  "buttons": [
+    {
+      "id": "landing",
+      "text": "View landing page",
+      "kind": "primary",
+      "font": "sans",
+      "href": "https://voaneves.github.io/colab-rl/",
+      "landing": false
+    },
+    {
+      "id": "notebook",
+      "text": "Open the CartPole notebook",
+      "kind": "secondary",
+      "font": "sans",
+      "href": "https://colab.research.google.com/github/voaneves/colab-rl/blob/master/notebooks/actor_critic_cartpole.ipynb",
+      "landing_kind": "primary"
+    },
+    {
+      "id": "hire",
+      "text": "Let's talk",
+      "kind": "primary",
+      "font": "sans",
+      "href": "https://voaneves.com/en/#contact",
+      "landing": false
+    },
+    {
+      "id": "site",
+      "text": "voaneves.com",
+      "kind": "secondary",
+      "font": "sans",
+      "href": "https://voaneves.com/en/",
+      "landing": false
+    }
+  ],
+  "features": [
+    "DQN in Keras, with prioritized experience replay and noisy layers.",
+    "Notebooks you can open and run in Google Colab.",
+    "Designed to be customized and extended."
+  ],
+  "landing": true,
+  "live_url": "https://voaneves.github.io/colab-rl/",
+  "hire_href": "https://voaneves.com/en/#contact"
+}
